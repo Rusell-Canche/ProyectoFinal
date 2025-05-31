@@ -8,763 +8,182 @@
      8                                 
      9                                 [section .data]
     10                                 
-    11                                  EXIT_SUCCESS equ 0
-    12                                  SYS_exit equ 60
-    13                                  SYS_read equ 0
-    14                                  SYS_write equ 1
-    15                                  SYS_open equ 2
-    16                                  SYS_close equ 3
-    17                                  SYS_creat equ 85
-    18                                  O_RDONLY equ 0
-    19                                  LF equ 10
-    20                                  NULL equ 0
-    21                                  STDOUT equ 1
-    22                                  STDIN equ 0
-    23                                  MAX_KMER_LEN equ 10
-    24                                  MAX_PATH_LEN equ 256
-    25                                  MAX_FILE_SIZE equ 1000000
-    26                                  MAX_KMERS equ 1048576
-    27                                 
-    28                                 
-    29 00000000 456E746572206B2028-     msg_k_prompt db "Enter k (4-10): ", 0
-    30 00000000 342D3130293A2000   
-    31 00000011 456E7465722066696C-     msg_filename db "Enter filename: ", 0
-    32 00000011 656E616D653A2000   
-    33 00000022 496E76616C6964206B-     msg_invalid_k db "Invalid k. Must be 4-10.", LF, 0
-    34 00000022 2E204D757374206265-
-    35 00000022 20342D31302E0A00   
-    36 0000003C 4572726F72206F7065-     msg_file_error db "Error opening file.", LF, 0
-    37 0000003C 6E696E672066696C65-
-    38 0000003C 2E0A00             
-    39 00000051 506C61736D69642064-     msg_plasmid db "Plasmid detected. Sequence skipped.", LF, 0
-    40 00000051 657465637465642E20-
-    41 00000051 53657175656E636520-
-    42 00000051 736B69707065642E0A-
-    43 00000051 00                 
-    44 00000076 496E76616C69642063-     msg_invalid_char db "Invalid character found: ", 0
-    45 00000076 686172616374657220-
-    46 00000076 666F756E643A2000   
-    47 00000090 56616C696420636861-     msg_clean_chars db "Valid characters processed: ", 0
-    48 00000090 726163746572732070-
-    49 00000090 726F6365737365643A-
-    50 00000090 2000               
-    51 000000AD 546F74616C206B2D6D-     msg_total_kmers db "Total k-mers generated: ", 0
-    52 000000AD 6572732067656E6572-
-    53 000000AD 617465643A2000     
-    54 000000C6 536561726368206B2D-     msg_search_prompt db "Search k-mer (or 'exit'): ", 0
-    55 000000C6 6D657220286F722027-
-    56 000000C6 6578697427293A2000 
-    57 000000E1 4672657175656E6379-     msg_found db "Frequency: ", 0
-    58 000000E1 3A2000             
-    59 000000ED 4B2D6D6572206E6F74-     msg_not_found db "K-mer not found.", LF, 0
-    60 000000ED 20666F756E642E0A00 
-    61 000000FF 45786974696E672E2E-     msg_exit db "Exiting...", LF, 0
-    62 000000FF 2E0A00             
-    63 0000010B 0A00                    newline db LF, 0
-    64 0000010D 2020202000              tab db "    ", 0
-    65                                 
+    11                                 
+    12                                 LF equ 10
+    13                                 NULL equ 0
+    14                                 TRUE equ 1
+    15                                 FALSE equ 0
+    16                                 EXIT_SUCCESS equ 0
+    17                                 STDIN equ 0
+    18                                 STDOUT equ 1
+    19                                 STDERR equ 2
+    20                                 SYS_read equ 0
+    21                                 SYS_write equ 1
+    22                                 SYS_open equ 2
+    23                                 SYS_close equ 3
+    24                                 SYS_fork equ 57
+    25                                 SYS_exit equ 60
+    26                                 SYS_creat equ 85
+    27                                 SYS_time equ 201
+    28                                 O_CREAT equ 0x40
+    29                                 O_TRUNC equ 0x200
+    30                                 O_APPEND equ 0x400
+    31                                 O_RDONLY equ 000000
+    32                                 O_WRONLY equ 000001
+    33                                 O_RDWR equ 000002
+    34                                 S_IRUSR equ 00400
+    35                                 S_IWUSR equ 00200
+    36                                 S_IXUSR equ 00100
+    37                                 
+    38                                 
+    39                                 BUFF_SIZE equ 255
+    40 00000000 0A00                   newLine db LF, NULL
+    41 00000002 0A46696C6520526561-    header db LF, "File Read Example."
+    42 00000002 64204578616D706C65-
+    43 00000002 2E                 
+    44 00000015 0A0A00                  db LF, LF, NULL
+    45 00000018 5072756562612E7478-    fileName db "Prueba.txt", NULL
+    46 00000018 7400               
+    47 00000023 0000000000000000       fileDesc dq 0
+    48 0000002B 4572726F72206F7065-    errMsgOpen db "Error opening the file.", LF, NULL
+    49 0000002B 6E696E672074686520-
+    50 0000002B 66696C652E0A00     
+    51 00000044 4572726F7220726561-    errMsgRead db "Error reading from the file.", LF, NULL
+    52 00000044 64696E672066726F6D-
+    53 00000044 207468652066696C65-
+    54 00000044 2E0A00             
+    55                                 
+    56                                 
+    57                                 [section .bss]
+    58 00000000 <gap>                  readBuffer resb BUFF_SIZE
+    59                                 
+    60                                 [extern fprintStr]
+    61                                 
+    62                                 
+    63                                 
+    64                                 [section .text]
+    65                                 [global _start]
     66                                 
-    67 00000112 0000000000000000        k_value dq 0
-    68 0000011A 00<rept>                filename times MAX_PATH_LEN db 0
-    69 0000021A 0000000000000000        file_desc dq 0
-    70 00000222 0000000000000000        file_size dq 0
-    71 0000022A 00                      plasmid_flag db 0
-    72 0000022B 0000000000000000        invalid_count dq 0
-    73 00000233 0000000000000000        clean_count dq 0
-    74 0000023B 0000000000000000        total_kmers dq 0
-    75 00000243 6578697400              exit_cmd db "exit", 0
+    67                                 _start:
+    68                                 
+    69                                 
+    70                                 
+    71 00000000 48C7C7[00000000]       mov rdi, header
+    72 00000007 E8A7000000             call printStr
+    73                                 
+    74                                 
+    75                                 
     76                                 
-    77                                 [section .bss]
-    78 00000000 <gap>                   file_buffer resb MAX_FILE_SIZE
-    79 000F4240 <gap>                   clean_dna resb MAX_FILE_SIZE
-    80 001E8480 <gap>                   clean_len resq 1
-    81 001E8488 <gap>                   freq_table resd MAX_KMERS
-    82 005E8488 <gap>                   kmer_array resb (16 * MAX_KMERS)
-    83 015E8488 <gap>                   num_non_zero resq 1
-    84 015E8490 <gap>                   input_buffer resb 256
-    85 015E8590 <gap>                   char_buffer resb 2
+    77                                 
+    78                                 
+    79                                 
+    80                                 
+    81                                 
+    82                                 
+    83                                 
+    84                                 
+    85                                 
     86                                 
-    87                                 [section .text]
-    88                                 [global _start]
-    89                                 
-    90                                 _start:
-    91                                 
-    92 00000000 48C7C7[00000000]        mov rdi, msg_k_prompt
-    93 00000007 E865040000              call print_string
-    94 0000000C 48C7C7[00000000]        mov rdi, input_buffer
-    95 00000013 48C7C600010000          mov rsi, 256
-    96 0000001A E888040000              call read_input
-    97 0000001F E8AC040000              call parse_int
-    98 00000024 4883F804                cmp rax, 4
-    99 00000028 7C5E                    jl .invalid_k
-   100 0000002A 4883F80A                cmp rax, 10
-   101 0000002E 7F58                    jg .invalid_k
-   102 00000030 48890425[00000000]      mov [k_value], rax
+    87                                 openInputFile:
+    88 0000000C 48C7C002000000         mov rax, SYS_open
+    89 00000013 48C7C7[00000000]       mov rdi, fileName
+    90 0000001A 48C7C600000000         mov rsi, O_RDONLY
+    91 00000021 0F05                   syscall
+    92 00000023 4883F800               cmp rax, 0
+    93 00000027 7C61                   jl errorOnOpen
+    94 00000029 48890425[00000000]     mov qword [fileDesc], rax
+    95                                 
+    96                                 
+    97                                 
+    98                                 
+    99                                 
+   100                                 
+   101                                 
+   102                                 
    103                                 
    104                                 
-   105 00000038 48C7C7[00000000]        mov rdi, msg_filename
-   106 0000003F E82D040000              call print_string
-   107 00000044 48C7C7[00000000]        mov rdi, filename
-   108 0000004B 48C7C600010000          mov rsi, MAX_PATH_LEN
-   109 00000052 E850040000              call read_input
-   110                                 
-   111                                 
-   112 00000057 E8EC000000              call open_file
-   113 0000005C 4883F800                cmp rax, 0
-   114 00000060 7C37                    jl .file_error
-   115 00000062 48890425[00000000]      mov [file_desc], rax
+   105                                 
+   106                                 
+   107 00000031 48C7C000000000         mov rax, SYS_read
+   108 00000038 488B3C25[00000000]     mov rdi, qword [fileDesc]
+   109 00000040 48C7C6[00000000]       mov rsi, readBuffer
+   110 00000047 48C7C2FF000000         mov rdx, BUFF_SIZE
+   111 0000004E 0F05                   syscall
+   112 00000050 4883F800               cmp rax, 0
+   113 00000054 7C42                   jl errorOnRead
+   114                                 
+   115                                 
    116                                 
-   117 0000006A E8F1000000              call read_file
-   118 0000006F E814010000              call close_file
-   119 00000074 E821010000              call process_dna
-   120 00000079 E8DD010000              call generate_kmers
-   121 0000007E E861020000              call build_kmer_array
-   122 00000083 E8C3020000              call quicksort
-   123 00000088 EB20                    jmp .search_loop
-   124                                 
-   125                                 .invalid_k:
-   126 0000008A 48C7C7[00000000]        mov rdi, msg_invalid_k
-   127 00000091 E8DB030000              call print_string
-   128 00000096 E991000000              jmp .exit
+   117                                 
+   118 00000056 48C7C6[00000000]       mov rsi, readBuffer
+   119 0000005D C6040600               mov byte [rsi+rax], NULL
+   120 00000061 48C7C7[00000000]       mov rdi, readBuffer
+   121 00000068 E846000000             call printStr
+   122                                 
+   123 0000006D 48C7C7[00000000]       mov rdi, newLine
+   124 00000074 E83A000000             call printStr
+   125                                 
+   126                                 
+   127                                 
+   128                                 
    129                                 
-   130                                 .file_error:
-   131 0000009B 48C7C7[00000000]        mov rdi, msg_file_error
-   132 000000A2 E8CA030000              call print_string
-   133 000000A7 E980000000              jmp .exit
-   134                                 
-   135                                 .search_loop:
-   136 000000AC 48C7C7[00000000]        mov rdi, msg_search_prompt
-   137 000000B3 E8B9030000              call print_string
-   138 000000B8 48C7C7[00000000]        mov rdi, input_buffer
-   139 000000BF 48C7C600010000          mov rsi, 256
-   140 000000C6 E8DC030000              call read_input
-   141                                 
-   142                                 
-   143 000000CB 48C7C7[00000000]        mov rdi, input_buffer
-   144 000000D2 48C7C6[00000000]        mov rsi, exit_cmd
-   145 000000D9 E818040000              call strcmp
-   146 000000DE 4883F800                cmp rax, 0
-   147 000000E2 744B                    je .exit
+   130                                 
+   131                                 
+   132 00000079 48C7C003000000         mov rax, SYS_close
+   133 00000080 488B3C25[00000000]     mov rdi, qword [fileDesc]
+   134 00000088 0F05                   syscall
+   135 0000008A EB1A                   jmp last
+   136                                 
+   137                                 
+   138                                 
+   139                                 
+   140                                 
+   141                                 errorOnOpen:
+   142 0000008C 48C7C7[00000000]       mov rdi, errMsgOpen
+   143 00000093 E81B000000             call printStr
+   144 00000098 EB0C                   jmp last
+   145                                 
+   146                                 
+   147                                 
    148                                 
-   149                                 
-   150 000000E4 48C7C7[00000000]        mov rdi, input_buffer
-   151 000000EB 488B3425[00000000]      mov rsi, [k_value]
-   152 000000F3 E856030000              call search_kmer
-   153 000000F8 4883F8FF                cmp rax, -1
-   154 000000FC 7420                    je .not_found
-   155                                 
-   156 000000FE 48C7C7[00000000]        mov rdi, msg_found
-   157 00000105 E867030000              call print_string
-   158 0000010A 4889C7                  mov rdi, rax
-   159 0000010D E8B9040000              call print_uint
-   160 00000112 48C7C7[00000000]        mov rdi, newline
-   161 00000119 E853030000              call print_string
-   162 0000011E EB8A                    jmp .search_loop
+   149                                 errorOnRead:
+   150 0000009A 48C7C7[00000000]       mov rdi, errMsgRead
+   151 000000A1 E80D000000             call printStr
+   152 000000A6 EBFE                   jmp last
+   153                                 last:
+   154 000000A8 48C7C03C000000          mov rax, SYS_exit
+   155 000000AF 48C7C700000000          mov rdi, EXIT_SUCCESS
+   156 000000B6 0F05                    syscall
+   157                                 
+   158                                 
+   159                                 
+   160                                 
+   161                                 
+   162                                 
    163                                 
-   164                                 .not_found:
-   165 00000120 48C7C7[00000000]        mov rdi, msg_not_found
-   166 00000127 E845030000              call print_string
-   167 0000012C E976FFFFFF              jmp .search_loop
+   164                                 
+   165                                 [global printStr]
+   166                                 printStr:
+   167 000000B8 53                      push rbx
    168                                 
-   169                                 .exit:
-   170 00000131 48C7C7[00000000]        mov rdi, msg_exit
-   171 00000138 E834030000              call print_string
-   172 0000013D 48C7C03C000000          mov rax, SYS_exit
-   173 00000144 48C7C700000000          mov rdi, EXIT_SUCCESS
-   174 0000014B 0F05                    syscall
-   175                                 
-   176                                 
+   169 000000B9 4889FB                  mov rbx,rdi
+   170 000000BC 48C7C200000000          mov rdx,0
+   171                                  strCountL:
+   172 000000C3 803B00                  cmp byte [rbx],NULL
+   173 000000C6 7406                    je strDone
+   174 000000C8 48FFC2                  inc rdx
+   175 000000CB 48FFC3                  inc rbx
+   176 000000CE EBF1                    jmp strCountL
    177                                 
-   178                                 
-   179                                 open_file:
-   180 0000014D 48C7C002000000          mov rax, SYS_open
-   181 00000154 48C7C7[00000000]        mov rdi, filename
-   182 0000015B 48C7C600000000          mov rsi, O_RDONLY
-   183 00000162 0F05                    syscall
-   184 00000164 C3                      ret
-   185                                 
+   178                                  strDone:
+   179 000000D0 4883FA00                cmp rdx,0
+   180 000000D4 7411                    je ptrDone
+   181                                 
+   182 000000D6 48C7C001000000          mov rax, SYS_write
+   183 000000DD 4889FE                  mov rsi, rdi
+   184 000000E0 48C7C701000000          mov rdi,STDOUT
+   185 000000E7 0F05                    syscall
    186                                 
-   187                                 read_file:
-   188 00000165 48C7C000000000          mov rax, SYS_read
-   189 0000016C 488B3C25[00000000]      mov rdi, [file_desc]
-   190 00000174 48C7C6[00000000]        mov rsi, file_buffer
-   191 0000017B 48C7C240420F00          mov rdx, MAX_FILE_SIZE
-   192 00000182 0F05                    syscall
-   193 00000184 48890425[00000000]      mov [file_size], rax
-   194 0000018C C3                      ret
-   195                                 
-   196                                 
-   197                                 close_file:
-   198 0000018D 48C7C003000000          mov rax, SYS_close
-   199 00000194 488B3C25[00000000]      mov rdi, [file_desc]
-   200 0000019C 0F05                    syscall
-   201 0000019E C3                      ret
-   202                                 
-   203                                 
-   204                                 process_dna:
-   205 0000019F 48C7C6[00000000]        mov rsi, file_buffer
-   206 000001A6 48C7C7[00000000]        mov rdi, clean_dna
-   207 000001AD 488B0C25[00000000]      mov rcx, [file_size]
-   208 000001B5 4831DB                  xor rbx, rbx
-   209 000001B8 4D31C0                  xor r8, r8
-   210                                 
-   211                                 .process_loop:
-   212 000001BB 4883F900                cmp rcx, 0
-   213 000001BF 0F8481000000            je .process_done
-   214 000001C5 8A06                    mov al, [rsi]
-   215                                 
-   216                                 
-   217 000001C7 3C3E                    cmp al, '>'
-   218 000001C9 7507                    jne .check_newline
-   219 000001CB 49C7C001000000          mov r8, 1
-   220 000001D2 EB47                    jmp .skip_char
-   221                                 
-   222                                 .check_newline:
-   223 000001D4 3C0A                    cmp al, LF
-   224 000001D6 7507                    jne .check_valid_char
-   225 000001D8 49C7C000000000          mov r8, 0
-   226 000001DF EB3A                    jmp .skip_char
-   227                                 
-   228                                 .check_valid_char:
-   229                                 
-   230 000001E1 4983F801                cmp r8, 1
-   231 000001E5 7434                    je .skip_char
-   232                                 
-   233                                 
-   234 000001E7 3C41                    cmp al, 'A'
-   235 000001E9 7426                    je .valid_char
-   236 000001EB 3C43                    cmp al, 'C'
-   237 000001ED 7422                    je .valid_char
-   238 000001EF 3C47                    cmp al, 'G'
-   239 000001F1 741E                    je .valid_char
-   240 000001F3 3C54                    cmp al, 'T'
-   241 000001F5 741A                    je .valid_char
-   242 000001F7 3C61                    cmp al, 'a'
-   243 000001F9 7414                    je .to_upper
-   244 000001FB 3C63                    cmp al, 'c'
-   245 000001FD 7410                    je .to_upper
-   246 000001FF 3C67                    cmp al, 'g'
-   247 00000201 740C                    je .to_upper
-   248 00000203 3C74                    cmp al, 't'
-   249 00000205 7408                    je .to_upper
-   250                                 
-   251                                 
-   252 00000207 48FF0425[00000000]      inc qword [invalid_count]
-   253 0000020F EB0A                    jmp .skip_char
-   254                                 
-   255                                 .to_upper:
-   256 00000211 2C20                    sub al, 32
-   257                                 
-   258                                 .valid_char:
-   259 00000213 8807                    mov [rdi], al
-   260 00000215 48FFC7                  inc rdi
-   261 00000218 48FFC3                  inc rbx
-   262 0000021B EB22                    jmp .next_char
-   263                                 
-   264                                 .skip_char:
-   265                                 
-   266 0000021D 4983F801                cmp r8, 1
-   267 00000221 751C                    jne .next_char
-   268 00000223 803C25[00000000]00      cmp byte [plasmid_flag], 0
-   269 0000022B 7512                    jne .next_char
-   270 0000022D C60425[00000000]01      mov byte [plasmid_flag], 1
-   271 00000235 48C7C7[00000000]        mov rdi, msg_plasmid
-   272 0000023C E830020000              call print_string
-   273                                 
-   274                                 .next_char:
-   275 00000241 48FFC6                  inc rsi
-   276 00000244 48FFC9                  dec rcx
-   277 00000247 E96AFFFFFF              jmp .process_loop
-   278                                 
-   279                                 .process_done:
-   280 0000024C C60700                  mov byte [rdi], 0
-   281 0000024F 48891C25[00000000]      mov [clean_len], rbx
-   282 00000257 48891C25[00000000]      mov [clean_count], rbx
-   283 0000025F C3                      ret
-   284                                 
-   285                                 
-   286                                 generate_kmers:
-   287 00000260 488B0C25[00000000]      mov rcx, [clean_len]
-   288 00000268 4C8B0425[00000000]      mov r8, [k_value]
-   289 00000270 4C29C1                  sub rcx, r8
-   290 00000273 7E69                    jle .generate_done
-   291                                 
-   292 00000275 48C7C6[00000000]        mov rsi, clean_dna
-   293 0000027C 4D31C9                  xor r9, r9
-   294                                 
-   295                                 .generate_loop:
-   296                                 
-   297 0000027F 4889F7                  mov rdi, rsi
-   298 00000282 4D89C2                  mov r10, r8
-   299 00000285 4831C0                  xor rax, rax
-   300 00000288 4D31DB                  xor r11, r11
-   301                                 
-   302                                 .index_loop:
-   303 0000028B 8A1F                    mov bl, [rdi]
-   304 0000028D 48C1E002                shl rax, 2
-   305                                 
-   306                                 
-   307 00000291 80FB41                  cmp bl, 'A'
-   308 00000294 740D                    je .a_char
-   309 00000296 80FB43                  cmp bl, 'C'
-   310 00000299 740A                    je .c_char
-   311 0000029B 80FB47                  cmp bl, 'G'
-   312 0000029E 740B                    je .g_char
-   313 000002A0 80FB54                  cmp bl, 'T'
-   314 000002A3 740C                    je .t_char
-   315                                 
-   316                                 .a_char:
-   317                                 
-   318 000002A5 EB0E                    jmp .next_char_index
-   319                                 
-   320                                 .c_char:
-   321                                 
-   322 000002A7 4883C801                or rax, 1
-   323 000002AB EB08                    jmp .next_char_index
-   324                                 
-   325                                 .g_char:
-   326                                 
-   327 000002AD 4883C802                or rax, 2
-   328 000002B1 EB02                    jmp .next_char_index
-   329                                 
-   330                                 .t_char:
-   331                                 
-   332 000002B3 4883C803                or rax, 3
-   333                                 
-   334                                 .next_char_index:
-   335 000002B7 48FFC7                  inc rdi
-   336 000002BA 49FFC3                  inc r11
-   337 000002BD 4D39D3                  cmp r11, r10
-   338 000002C0 7CC7                    jl .index_loop
-   339                                 
-   340                                 
-   341 000002C2 448B1C85[00000000]      mov r11d, [freq_table + rax*4]
-   342 000002CA 41FFC3                  inc r11d
-   343 000002CD 44891C85[00000000]      mov [freq_table + rax*4], r11d
-   344                                 
-   345                                 
-   346 000002D5 48FFC6                  inc rsi
-   347 000002D8 49FFC1                  inc r9
-   348 000002DB 4939C9                  cmp r9, rcx
-   349 000002DE 7C9D                    jl .generate_loop
-   350                                 
-   351                                 .generate_done:
-   352 000002E0 4C890C25[00000000]      mov [total_kmers], r9
-   353 000002E8 C3                      ret
-   354                                 
-   355                                 
-   356                                 build_kmer_array:
-   357                                 
-   358 000002E9 488B0C25[00000000]      mov rcx, [k_value]
-   359 000002F1 48C7C001000000          mov rax, 1
-   360                                 .calc_max_index:
-   361 000002F8 48C1E002                shl rax, 2
-   362 000002FC E2F8                    loop .calc_max_index
-   363 000002FE 4889C1                  mov rcx, rax
-   364                                 
-   365 00000301 4D31DB                  xor r11, r11
-   366 00000304 4D31C9                  xor r9, r9
-   367                                 
-   368                                 .array_loop:
-   369 00000307 4939CB                  cmp r11, rcx
-   370 0000030A 7D39                    jge .array_done
-   371                                 
-   372                                 
-   373 0000030C 428B049D[00000000]      mov eax, [freq_table + r11*4]
-   374 00000314 85C0                    test eax, eax
-   375 00000316 7428                    jz .next_index
-   376                                 
-   377                                 
-   378 00000318 4D89CC                  mov r12, r9
-   379 0000031B 4D6BE410                imul r12, 16
-   380 0000031F 41898424[0C000000]      mov [kmer_array + r12 + 12], eax
-   381                                 
-   382                                 
-   383 00000327 498DBC24[00000000]      lea rdi, [kmer_array + r12]
-   384 0000032F 4C89DE                  mov rsi, r11
-   385 00000332 488B1425[00000000]      mov rdx, [k_value]
-   386 0000033A E845020000              call decode_kmer
-   387                                 
-   388                                 
-   389 0000033F 49FFC1                  inc r9
-   390                                 
-   391                                 .next_index:
-   392 00000342 49FFC3                  inc r11
-   393 00000345 EBBE                    jmp .array_loop
-   394                                 
-   395                                 .array_done:
-   396 00000347 4C890C25[00000000]      mov [num_non_zero], r9
-   397 0000034F C3                      ret
-   398                                 
-   399                                 
-   400                                 quicksort:
-   401 00000350 4C8B2425[00000000]      mov r12, [num_non_zero]
-   402 00000358 4D85E4                  test r12, r12
-   403 0000035B 740C                    jz .done
-   404                                 
-   405                                 
-   406 0000035D 4831FF                  xor rdi, rdi
-   407 00000360 49FFCC                  dec r12
-   408 00000363 4C89E6                  mov rsi, r12
-   409 00000366 E8FCFFFFFF              call quicksort_recursive
-   410                                 
-   411                                 .done:
-   412 0000036B C3                      ret
-   413                                 
-   414                                 quicksort_recursive:
-   415                                 
-   416 0000036C 4839F7                  cmp rdi, rsi
-   417 0000036F 7D24                    jge .end_recursive
-   418                                 
-   419                                 
-   420 00000371 E81D000000              call partition
-   421 00000376 4989C0                  mov r8, rax
-   422                                 
-   423                                 
-   424 00000379 56                      push rsi
-   425 0000037A 4150                    push r8
-   426 0000037C 4C89C6                  mov rsi, r8
-   427 0000037F 48FFCE                  dec rsi
-   428 00000382 E8E0FFFFFF              call quicksort_recursive
-   429 00000387 4158                    pop r8
-   430 00000389 5E                      pop rsi
-   431                                 
-   432                                 
-   433 0000038A 57                      push rdi
-   434 0000038B 4C89C7                  mov rdi, r8
-   435 0000038E 48FFC7                  inc rdi
-   436 00000391 E8D1FFFFFF              call quicksort_recursive
-   437 00000396 5F                      pop rdi
-   438                                 
-   439                                 .end_recursive:
-   440 00000397 C3                      ret
-   441                                 
-   442                                 partition:
-   443                                 
-   444 00000398 4989F1                  mov r9, rsi
-   445 0000039B 4989FA                  mov r10, rdi
-   446 0000039E 49FFCA                  dec r10
-   447                                 
-   448 000003A1 4989FB                  mov r11, rdi
-   449                                 
-   450                                 .partition_loop:
-   451 000003A4 4939F3                  cmp r11, rsi
-   452 000003A7 7D3D                    jge .end_partition
-   453                                 
-   454                                 
-   455 000003A9 4C89D8                  mov rax, r11
-   456 000003AC 486BC010                imul rax, 16
-   457 000003B0 4C8DA0[00000000]        lea r12, [kmer_array + rax]
-   458                                 
-   459 000003B7 4C89C8                  mov rax, r9
-   460 000003BA 486BC010                imul rax, 16
-   461 000003BE 4C8DA8[00000000]        lea r13, [kmer_array + rax]
-   462                                 
-   463 000003C5 4C89E7                  mov rdi, r12
-   464 000003C8 4C89EE                  mov rsi, r13
-   465 000003CB E84A010000              call compare_kmers
-   466 000003D0 83F800                  cmp eax, 0
-   467 000003D3 7D0C                    jge .next_j
-   468                                 
-   469                                 
-   470 000003D5 49FFC2                  inc r10
-   471 000003D8 4C89D7                  mov rdi, r10
-   472 000003DB 4C89DE                  mov rsi, r11
-   473 000003DE E812000000              call swap_kmers
-   474                                 
-   475                                 .next_j:
-   476 000003E3 49FFC3                  inc r11
-   477 000003E6 EBBA                    jmp .partition_loop
-   478                                 
-   479                                 .end_partition:
-   480                                 
-   481 000003E8 49FFC2                  inc r10
-   482 000003EB 4C89D7                  mov rdi, r10
-   483 000003EE 4C89CE                  mov rsi, r9
-   484 000003F1 E8FFFFFFFF              call swap_kmers
-   485                                 
-   486 000003F6 4C89D0                  mov rax, r10
-   487 000003F9 C3                      ret
-   488                                 
-   489                                 
-   490                                 swap_kmers:
-   491                                 
-   492 000003FA 486BFF10                imul rdi, 16
-   493 000003FE 486BF610                imul rsi, 16
-   494                                 
-   495                                 
-   496 00000402 488B87[00000000]        mov rax, [kmer_array + rdi]
-   497 00000409 488B9E[00000000]        mov rbx, [kmer_array + rsi]
-   498 00000410 488986[00000000]        mov [kmer_array + rsi], rax
-   499 00000417 48899F[00000000]        mov [kmer_array + rdi], rbx
-   500                                 
-   501 0000041E 488B87[08000000]        mov rax, [kmer_array + rdi + 8]
-   502 00000425 488B9E[08000000]        mov rbx, [kmer_array + rsi + 8]
-   503 0000042C 488986[08000000]        mov [kmer_array + rsi + 8], rax
-   504 00000433 48899F[08000000]        mov [kmer_array + rdi + 8], rbx
-   505                                 
-   506                                 
-   507 0000043A 8B87[0C000000]          mov eax, [kmer_array + rdi + 12]
-   508 00000440 8B9E[0C000000]          mov ebx, [kmer_array + rsi + 12]
-   509 00000446 8986[0C000000]          mov [kmer_array + rsi + 12], eax
-   510 0000044C 899F[0C000000]          mov [kmer_array + rdi + 12], ebx
-   511 00000452 C3                      ret
-   512                                 
-   513                                 
-   514                                 search_kmer:
-   515                                 
-   516 00000453 E8F4000000              call encode_kmer
-   517 00000458 483D00001000            cmp rax, MAX_KMERS
-   518 0000045E 730C                    jae .not_found
-   519                                 
-   520 00000460 8B1C85[00000000]        mov ebx, [freq_table + rax*4]
-   521 00000467 85DB                    test ebx, ebx
-   522 00000469 7401                    jz .not_found
-   523 0000046B 89D8                    mov eax, ebx
-   524 0000046D C3                      ret
-   525                                 
-   526                                 .not_found:
-   527 0000046E 48C7C0FFFFFFFF          mov rax, -1
-   528 00000475 C3                      ret
-   529                                 
-   530                                 
-   531                                 
-   532                                 
-   533                                 print_string:
-   534 00000476 53                      push rbx
-   535 00000477 4154                    push r12
-   536 00000479 4889FB                  mov rbx, rdi
-   537 0000047C 48C7C200000000          mov rdx, 0
-   538                                 
-   539                                 .count_loop:
-   540 00000483 803B00                  cmp byte [rbx], 0
-   541 00000486 7406                    je .count_done
-   542 00000488 48FFC2                  inc rdx
-   543 0000048B 48FFC3                  inc rbx
-   544 0000048E EBF1                    jmp .count_loop
-   545                                 
-   546                                 .count_done:
-   547 00000490 4885D2                  test rdx, rdx
-   548 00000493 7411                    jz .print_done
-   549                                 
-   550 00000495 48C7C001000000          mov rax, SYS_write
-   551 0000049C 4889FE                  mov rsi, rdi
-   552 0000049F 48C7C701000000          mov rdi, STDOUT
-   553 000004A6 0F05                    syscall
-   554                                 
-   555                                 .print_done:
-   556 000004A8 415C                    pop r12
-   557 000004AA 5B                      pop rbx
-   558 000004AB C3                      ret
-   559                                 
-   560                                 
-   561                                 read_input:
-   562 000004AC 53                      push rbx
-   563 000004AD 4889FB                  mov rbx, rdi
-   564                                 
-   565                                 
-   566 000004B0 48C7C000000000          mov rax, SYS_read
-   567 000004B7 48C7C700000000          mov rdi, STDIN
-   568 000004BE 4889F2                  mov rdx, rsi
-   569 000004C1 0F05                    syscall
-   570                                 
-   571                                 
-   572 000004C3 4889C1                  mov rcx, rax
-   573 000004C6 4883F900                cmp rcx, 0
-   574 000004CA 7E05                    jle .read_done
-   575 000004CC 48FFC9                  dec rcx
-   576 000004CF C6040B00                mov byte [rbx + rcx], 0
-   577                                 
-   578                                 .read_done:
-   579 000004D3 5B                      pop rbx
-   580 000004D4 C3                      ret
-   581                                 
-   582                                 
-   583                                 parse_int:
-   584 000004D5 4831C0                  xor rax, rax
-   585 000004D8 4831C9                  xor rcx, rcx
-   586                                 
-   587                                 .convert_loop:
-   588 000004DB 8A0F                    mov cl, [rdi]
-   589 000004DD 84C9                    test cl, cl
-   590 000004DF 7417                    jz .done
-   591                                 
-   592 000004E1 80F930                  cmp cl, '0'
-   593 000004E4 7212                    jb .done
-   594 000004E6 80F939                  cmp cl, '9'
-   595 000004E9 770D                    ja .done
-   596                                 
-   597 000004EB 80E930                  sub cl, '0'
-   598 000004EE 486BC00A                imul rax, 10
-   599 000004F2 4801C8                  add rax, rcx
-   600 000004F5 48FFC7                  inc rdi
-   601 000004F8 EBDF                    jmp .convert_loop
-   602                                 
-   603                                 .done:
-   604 000004FA C3                      ret
-   605                                 
-   606                                 
-   607                                 strcmp:
-   608 000004FB 8A07                    mov al, [rdi]
-   609 000004FD 8A1E                    mov bl, [rsi]
-   610 000004FF 84C0                    test al, al
-   611 00000501 740A                    jz .check_end
-   612 00000503 38D8                    cmp al, bl
-   613 00000505 750E                    jne .not_equal
-   614 00000507 48FFC7                  inc rdi
-   615 0000050A 48FFC6                  inc rsi
-   616 0000050D EBEA                    jmp strcmp
-   617                                 
-   618                                 .check_end:
-   619 0000050F 84DB                    test bl, bl
-   620 00000511 7502                    jnz .not_equal
-   621 00000513 4831C0                  xor rax, rax
-   622 00000516 C3                      ret
-   623                                 
-   624                                 .not_equal:
-   625 00000517 48C7C001000000          mov rax, 1
-   626 0000051E C3                      ret
-   627                                 
-   628                                 
-   629                                 compare_kmers:
-   630 0000051F 53                      push rbx
-   631 00000520 4889F3                  mov rbx, rsi
-   632                                 
-   633                                 .compare_loop:
-   634 00000523 8A07                    mov al, [rdi]
-   635 00000525 8A1E                    mov bl, [rsi]
-   636 00000527 84C0                    test al, al
-   637 00000529 740A                    jz .check_end
-   638 0000052B 38D8                    cmp al, bl
-   639 0000052D 750E                    jne .not_equal
-   640 0000052F 48FFC7                  inc rdi
-   641 00000532 48FFC6                  inc rsi
-   642 00000535 EBEA                    jmp .compare_loop
-   643                                 
-   644                                 .check_end:
-   645 00000537 84DB                    test bl, bl
-   646 00000539 7502                    jnz .not_equal
-   647 0000053B 31C0                    xor eax, eax
-   648 0000053D EB0E                    jmp .done
-   649                                 
-   650                                 .not_equal:
-   651 0000053F 38D8                    cmp al, bl
-   652 00000541 7205                    jb .less
-   653 00000543 B801000000              mov eax, 1
-   654 00000548 EB03                    jmp .done
-   655                                 .less:
-   656 0000054A B8FFFFFFFF              mov eax, -1
-   657                                 
-   658                                 .done:
-   659 0000054F 5B                      pop rbx
-   660 00000550 C3                      ret
-   661                                 
-   662                                 
-   663                                 encode_kmer:
-   664 00000551 4831C0                  xor rax, rax
-   665 00000554 4831C9                  xor rcx, rcx
-   666                                 
-   667                                 .encode_loop:
-   668 00000557 4839F1                  cmp rcx, rsi
-   669 0000055A 7D2A                    jge .encode_done
-   670                                 
-   671 0000055C 48C1E002                shl rax, 2
-   672 00000560 8A1F                    mov bl, [rdi]
-   673                                 
-   674 00000562 80FB41                  cmp bl, 'A'
-   675 00000565 7417                    je .next_char
-   676 00000567 80FB43                  cmp bl, 'C'
-   677 0000056A 7408                    je .c_char
-   678 0000056C 80FB47                  cmp bl, 'G'
-   679 0000056F 7407                    je .g_char
-   680 00000571 80FB54                  cmp bl, 'T'
-   681 00000574 7406                    je .t_char
-   682                                 
-   683                                 .c_char:
-   684 00000576 0C01                    or al, 1
-   685 00000578 EB04                    jmp .next_char
-   686                                 
-   687                                 .g_char:
-   688 0000057A 0C02                    or al, 2
-   689 0000057C EB00                    jmp .next_char
-   690                                 
-   691                                 .t_char:
-   692 0000057E 0C03                    or al, 3
-   693                                 
-   694                                 .next_char:
-   695 00000580 48FFC7                  inc rdi
-   696 00000583 48FFC1                  inc rcx
-   697 00000586 EBCD                    jmp .encode_loop
-   698                                 
-   699                                 .encode_done:
-   700 00000588 C3                      ret
-   701                                 
-   702                                 
-   703                                 decode_kmer:
-   704 00000589 4989D0                  mov r8, rdx
-   705 0000058C 4C8D0C17                lea r9, [rdi + rdx]
-   706 00000590 41C60100                mov byte [r9], 0
-   707                                 
-   708                                 .decode_loop:
-   709 00000594 49FFC9                  dec r9
-   710 00000597 49FFC8                  dec r8
-   711 0000059A 4088F0                  mov al, sil
-   712 0000059D 2403                    and al, 3
-   713                                 
-   714 0000059F 3C00                    cmp al, 0
-   715 000005A1 740A                    je .a_char
-   716 000005A3 3C01                    cmp al, 1
-   717 000005A5 740C                    je .c_char
-   718 000005A7 3C02                    cmp al, 2
-   719 000005A9 740E                    je .g_char
-   720 000005AB 3C03                    cmp al, 3
-   721 000005AD 7410                    je .t_char
-   722                                 
-   723                                 .a_char:
-   724 000005AF 41C60141                mov byte [r9], 'A'
-   725 000005B3 EB0E                    jmp .next
-   726                                 
-   727                                 .c_char:
-   728 000005B5 41C60143                mov byte [r9], 'C'
-   729 000005B9 EB08                    jmp .next
-   730                                 
-   731                                 .g_char:
-   732 000005BB 41C60147                mov byte [r9], 'G'
-   733 000005BF EB02                    jmp .next
-   734                                 
-   735                                 .t_char:
-   736 000005C1 41C60154                mov byte [r9], 'T'
-   737                                 
-   738                                 .next:
-   739 000005C5 48C1EE02                shr rsi, 2
-   740 000005C9 4983F800                cmp r8, 0
-   741 000005CD 7FC3                    jg .decode_loop
-   742 000005CF C3                      ret
-   743                                 
-   744                                 
-   745                                 print_uint:
-   746 000005D0 4889F8                  mov rax, rdi
-   747 000005D3 48C7C30A000000          mov rbx, 10
-   748 000005DA 48C7C100000000          mov rcx, 0
-   749                                 
-   750                                 .convert_loop:
-   751 000005E1 4831D2                  xor rdx, rdx
-   752 000005E4 48F7F3                  div rbx
-   753 000005E7 80C230                  add dl, '0'
-   754 000005EA 52                      push rdx
-   755 000005EB 48FFC1                  inc rcx
-   756 000005EE 4885C0                  test rax, rax
-   757 000005F1 75EC                    jnz .convert_loop
-   758                                 
-   759 000005F3 48C7C7[00000000]        mov rdi, char_buffer
-   760                                 
-   761                                 .output_loop:
-   762 000005FA 58                      pop rax
-   763 000005FB 8807                    mov [rdi], al
-   764 000005FD 48FFC7                  inc rdi
-   765 00000600 E2F6                    loop .output_loop
-   766                                 
-   767 00000602 C60700                  mov byte [rdi], 0
-   768 00000605 48C7C7[00000000]        mov rdi, char_buffer
-   769 0000060C E860FEFFFF              call print_string
-   770 00000611 C3                      ret
+   187                                  ptrDone:
+   188 000000E9 5B                      pop rbx
+   189 000000EA C3                      ret
