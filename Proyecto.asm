@@ -2,179 +2,329 @@
 ; Caracteristicas:
 ;   - Lee archivos FASTA/FNA, omite lineas de plasmidos
 ;   - Genera palabras de longitud k (4-10) y cuenta frecuencias
-;   - Ordena palabras alfabeticamente
-;   - Permite busquedas interactivas
+;   - Permite busquedas interactivas (pendiente)
+;   - Guarda palabras en archivo "palabras.txt"
 
 section .data
 ;--------------------------------
 ; Define Constants
-LF equ 10 ; line feed
-NULL equ 0 ; end of string
-TRUE equ 1
-FALSE equ 0
-EXIT_SUCCESS equ 0 ; success code
-STDIN equ 0 ; standard input
-STDOUT equ 1 ; standard output
-STDERR equ 2 ; standard error
-SYS_read equ 0 ; read
-SYS_write equ 1 ; write
-SYS_open equ 2 ; file open
-SYS_close equ 3 ; file close
-SYS_fork equ 57 ; fork
-SYS_exit equ 60 ; terminate
-SYS_creat equ 85 ; file open/create
-SYS_time equ 201 ; get time
+LF equ 10                     ; line feed
+NULL equ 0                    ; end of string
+EXIT_SUCCESS equ 0            ; success code
+STDIN equ 0                   ; standard input
+STDOUT equ 1                  ; standard output
+STDERR equ 2                  ; standard error
+SYS_read equ 0                ; read
+SYS_write equ 1               ; write
+SYS_open equ 2                ; file open
+SYS_close equ 3               ; file close
+SYS_exit equ 60               ; terminate
+SYS_creat equ 85              ; file open/create
+O_RDONLY equ 000000q          ; read only
+O_WRONLY equ 000001q          ; write only
 O_CREAT equ 0x40
 O_TRUNC equ 0x200
-O_APPEND equ 0x400
-O_RDONLY equ 000000q ; read only
-O_WRONLY equ 000001q ; write only
-O_RDWR equ 000002q ; read and write
-S_IRUSR equ 00400q
-S_IWUSR equ 00200q
-S_IXUSR equ 00100q
-;  --------------------------------
-; Define vars
-BUFF_SIZE equ 255
-newLine db LF, NULL
-header db LF, "File Read Example."
-       db LF, LF, NULL
-fileName db "Prueba.txt", NULL
-fileDesc  dq 0
-errMsgOpen db "Error opening the file.", LF, NULL
-errMsgRead db "Error reading from the file.", LF, NULL
-;-------------------------------------------------------
-;Memory section
-section .bss
-readBuffer resb BUFF_SIZE
-;import file
-extern fprintStr
-;++++++++++++++++++++++++++++++++++
-; Code section
+S_IRUSR equ 00400q            ; user read permission
+S_IWUSR equ 00200q            ; user write permission
+BUFF_SIZE equ 255             ; tamaño del buffer de lectura
+MAX_ADN_SIZE equ 100000       ; tamaño máximo para datos de ADN (100KB)
 
+; Mensajes y nombres de archivo
+newLine db LF, NULL
+header db "Analizador de palabras de ADN", LF, LF, NULL
+fileName db "Prueba.txt", NULL
+outFileName db "palabras.txt", NULL
+promptK db "Ingrese longitud de palabra (4-10): ", NULL
+errMsgOpen db "Error abriendo archivo.", LF, NULL
+errMsgRead db "Error leyendo archivo.", LF, NULL
+errMsgWrite db "Error escribiendo archivo.", LF, NULL
+errMsgK db "Error: k debe ser entre 4 y 10.", LF, NULL
+successMsg db "Palabras guardadas en palabras.txt", LF, NULL
+
+;-------------------------------------------------------
+section .bss
+readBuffer resb BUFF_SIZE     ; buffer para lectura de archivo
+adnBuffer resb MAX_ADN_SIZE   ; buffer para datos de ADN (sin cabeceras)
+fileDesc dq 0                 ; descriptor de archivo de entrada
+outFileDesc dq 0              ; descriptor de archivo de salida
+kVal resb 1                   ; valor de k ingresado por usuario
+adnLength resq 1              ; longitud de los datos de ADN
+
+;++++++++++++++++++++++++++++++++++
 section .text
 global _start
 
 _start:
+    ; Mostrar encabezado
+    mov rdi, header
+    call printStr
 
-; -----
-; Display header line
-mov rdi, header
-call printStr
+    ; Abrir archivo de entrada
+    call openInputFile
+    cmp rax, 0
+    jl _exitError              ; salir si hubo error
 
-; -----
-; Attempt to open file - Use system service for file open
-; System Service - Open
-; rax = SYS_open
-; rdi = address of file name string
-; rsi = attributes (i.e., read only, etc.)
-; Returns:
-; if error -> eax < 0
-; if success -> eax = file descriptor number
-; The file descriptor points to the File Control
-; Block (FCB). The FCB is maintained by the OS.
-; The file descriptor is used for all subsequent file
-; operations (read, write, close).
-openInputFile:
-mov rax, SYS_open ; file open
-mov rdi, fileName ; file name string
-mov rsi, O_RDONLY ; read only access
-syscall ; call the kernel
-cmp rax, 0 ; check for success
-jl errorOnOpen
-mov qword [fileDesc], rax ; save descriptor
+    ; Leer y procesar archivo FASTA
+    call readFASTA
+    cmp rax, 0
+    jl _exitError              ; salir si hubo error
 
-; -----
-; Read from file.
-; For this example, we know that the file has only 1 line.
-; System Service - Read
-; rax = SYS_read
-; rdi = file descriptor
-; rsi = address of where to place data
-; rdx = count of characters to read
-; Returns:
-; if error -> rax < 0
-; if success -> rax = count of characters actually read
-mov rax, SYS_read
-mov rdi, qword [fileDesc]
-mov rsi, readBuffer
-mov rdx, BUFF_SIZE
-syscall
-cmp rax, 0
-jl errorOnRead
-
-; -----
-; Print the buffer.
-; add the NULL for the print string
-mov rsi, readBuffer
-mov byte [rsi+rax], NULL
-mov rdi, readBuffer
-call printStr
-
-mov rdi, newLine
-call printStr
-
-
-; -----
-; Close the file.
-; System Service - close
-; rax = SYS_close
-; rdi = file descriptor
-mov rax, SYS_close
-mov rdi, qword [fileDesc]
-syscall
-jmp last
-
-; -----
-; Error on open.
-; note, eax contains an error code which is not used
-; for this example.
-errorOnOpen:
-mov rdi, errMsgOpen
-call printStr
-jmp last
-; -----
-; Error on read.
-; note, eax contains an error code which is not used
-; for this example.
-errorOnRead:
-mov rdi, errMsgRead
-call printStr
-jmp last
-last:
-    mov rax, SYS_exit     ; Call code for exit
-    mov rdi, EXIT_SUCCESS ; Exit program with success
+    ; Cerrar archivo de entrada
+    mov rax, SYS_close
+    mov rdi, [fileDesc]
     syscall
 
+    ; Solicitar valor de k al usuario
+    call getKValue
+    cmp rax, 0
+    jl _exitError              ; salir si k no es válido
 
-;******************************************************************
-;Generic function to display a str to the screen
-;str must be NULL terminated
-;Method:
-;   Count characters in str (excludind NULL)
-;   Use syscall to output characters
-global printStr
+    ; Generar palabras y guardar en archivo
+    call generateWords
+    cmp rax, 0
+    jl _exitError              ; salir si hubo error
+
+    ; Mensaje de éxito
+    mov rdi, successMsg
+    call printStr
+
+    ; Salir normalmente
+    mov rax, SYS_exit
+    mov rdi, EXIT_SUCCESS
+    syscall
+
+_exitError:
+    ; Salir con error
+    mov rax, SYS_exit
+    mov rdi, 1
+    syscall
+
+;-------------------------------------------------------
+; Abrir archivo de entrada
+; Retorna: eax = descriptor de archivo o código de error
+openInputFile:
+    mov rax, SYS_open
+    mov rdi, fileName
+    mov rsi, O_RDONLY
+    syscall
+    cmp rax, 0
+    jl .error
+    mov [fileDesc], rax
+    ret
+.error:
+    mov rdi, errMsgOpen
+    call printStr
+    ret
+
+;-------------------------------------------------------
+; Leer y procesar archivo FASTA
+; Omite líneas que comienzan con '>'
+readFASTA:
+    xor r15, r15              ; índice para adnBuffer
+    xor r12, r12              ; flag de cabecera (0 = datos, 1 = cabecera)
+    
+.readLoop:
+    ; Leer bloque del archivo
+    mov rax, SYS_read
+    mov rdi, [fileDesc]
+    mov rsi, readBuffer
+    mov rdx, BUFF_SIZE
+    syscall
+    
+    ; Verificar fin de archivo o error
+    cmp rax, 0
+    jl .readError
+    je .done
+    
+    ; Procesar bloque leído
+    mov r14, rax              ; guardar tamaño leído
+    xor r13, r13              ; índice en readBuffer
+    
+.processByte:
+    cmp r13, r14
+    jge .readLoop             ; terminar bloque
+    
+    mov al, [readBuffer + r13]
+    inc r13
+    
+    ; Verificar si estamos en cabecera
+    test r12, r12
+    jnz .headerSection
+    
+    ; Sección de datos de ADN
+    cmp al, '>'
+    je .startHeader
+    cmp al, LF
+    je .nextByte              ; omitir saltos de línea
+    cmp al, ';'
+    je .nextByte              ; omitir comentarios
+    
+    ; Guardar caracter válido (A,C,G,T,N)
+    cmp al, 'A'
+    jb .nextByte
+    cmp al, 'z'
+    ja .nextByte
+    
+    ; Convertir a mayúsculas si es necesario
+    cmp al, 'a'
+    jb .storeChar
+    cmp al, 'z'
+    ja .storeChar
+    sub al, 32                ; convertir a mayúscula
+    
+.storeChar:
+    ; Almacenar en buffer de ADN
+    mov [adnBuffer + r15], al
+    inc r15
+    jmp .nextByte
+
+.startHeader:
+    mov r12, 1                ; activar flag de cabecera
+    jmp .nextByte
+
+.headerSection:
+    ; En cabecera - buscar fin de línea
+    cmp al, LF
+    jne .nextByte
+    mov r12, 0                ; desactivar cabecera
+
+.nextByte:
+    jmp .processByte
+
+.readError:
+    mov rdi, errMsgRead
+    call printStr
+    mov rax, -1
+    ret
+
+.done:
+    ; Guardar longitud de datos de ADN
+    mov [adnLength], r15
+    xor rax, rax              ; retorno exitoso
+    ret
+
+;-------------------------------------------------------
+; Solicitar valor de k al usuario
+getKValue:
+    ; Mostrar prompt
+    mov rdi, promptK
+    call printStr
+    
+    ; Leer entrada de usuario
+    mov rax, SYS_read
+    mov rdi, STDIN
+    mov rsi, readBuffer
+    mov rdx, 3                ; leer hasta 3 caracteres (k + LF)
+    syscall
+    
+    ; Verificar si se leyó al menos 1 caracter
+    cmp rax, 1
+    jle .invalidK
+    
+    ; Convertir ASCII a entero
+    mov al, [readBuffer]
+    sub al, '0'
+    
+    ; Validar rango (4-10)
+    cmp al, 4
+    jb .invalidK
+    cmp al, 10
+    ja .invalidK
+    
+    ; Guardar valor de k
+    mov [kVal], al
+    xor rax, rax              ; retorno exitoso
+    ret
+
+.invalidK:
+    mov rdi, errMsgK
+    call printStr
+    mov rax, -1
+    ret
+
+;-------------------------------------------------------
+; Generar palabras y guardar en archivo
+generateWords:
+    ; Crear archivo de salida
+    mov rax, SYS_creat
+    mov rdi, outFileName
+    mov rsi, S_IRUSR | S_IWUSR
+    syscall
+    cmp rax, 0
+    jl .writeError
+    mov [outFileDesc], rax
+    
+    ; Calcular parámetros
+    movzx rcx, byte [kVal]    ; RCX = k
+    mov r14, [adnLength]      ; longitud ADN
+    sub r14, rcx              ; máximo índice
+    inc r14
+    xor r15, r15              ; índice actual
+    
+    ; Generar cada palabra
+.wordLoop:
+    cmp r15, r14
+    jge .closeFile
+    
+    ; Escribir palabra en archivo
+    mov rax, SYS_write
+    mov rdi, [outFileDesc]
+    lea rsi, [adnBuffer + r15]
+    mov rdx, rcx              ; longitud k
+    syscall
+    cmp rax, 0
+    jl .writeError
+    
+    ; Escribir salto de línea
+    mov rax, SYS_write
+    mov rdi, [outFileDesc]
+    mov rsi, newLine
+    mov rdx, 1
+    syscall
+    cmp rax, 0
+    jl .writeError
+    
+    inc r15
+    jmp .wordLoop
+
+.closeFile:
+    ; Cerrar archivo de salida
+    mov rax, SYS_close
+    mov rdi, [outFileDesc]
+    syscall
+    xor rax, rax
+    ret
+
+.writeError:
+    mov rdi, errMsgWrite
+    call printStr
+    mov rax, -1
+    ret
+
+;-------------------------------------------------------
+; Función para imprimir cadena
+; rdi = dirección de la cadena terminada en NULL
 printStr:
     push rbx
-    ;Count str characters
-    mov rbx,rdi
-    mov rdx,0
-    strCountL:
-        cmp byte [rbx],NULL
-        je strDone
-        inc rdx
-        inc rbx
-        jmp strCountL
+    ; Contar caracteres
+    mov rbx, rdi
+    mov rdx, 0
+.strCountLoop:
+    cmp byte [rbx], NULL
+    je .strDone
+    inc rdx
+    inc rbx
+    jmp .strCountLoop
 
-    strDone:
-        cmp rdx,0
-        je ptrDone
-        ;Call OS output str
-        mov rax, SYS_write ;system cado for write()
-        mov rsi, rdi ; address of chars to write
-        mov rdi,STDOUT ;standard out
-        syscall
-    
-    ptrDone:
+.strDone:
+    cmp rdx, 0
+    je .printDone
+    ; Llamar al sistema
+    mov rax, SYS_write
+    mov rsi, rdi
+    mov rdi, STDOUT
+    syscall
+
+.printDone:
     pop rbx
     ret
