@@ -19,844 +19,748 @@ Integrantes:
 Canche Ciau Rusell Emmanuel
 Gutierrez Perez Claudio Habraham
 */
-
 section .data
-    ; Constantes del sistema
-    LF              equ 10
-    NULL            equ 0
+    ; Constantes
     EXIT_SUCCESS    equ 0
-    STDIN           equ 0
-    STDOUT          equ 1
-    STDERR          equ 2
+    SYS_exit        equ 60
     SYS_read        equ 0
     SYS_write       equ 1
     SYS_open        equ 2
     SYS_close       equ 3
-    SYS_exit        equ 60
-    O_RDONLY        equ 000000q
-    
-    ; Constantes del programa
-    MAX_FILENAME    equ 256
-    MAX_DNA_SIZE    equ 1000000    ; 1MB para secuencia de ADN
-    MAX_KMERS       equ 100000     ; Máximo número de k-mers únicos
+    SYS_creat       equ 85
+    O_RDONLY        equ 0
+    LF              equ 10
+    NULL            equ 0
+    STDOUT          equ 1
+    STDIN           equ 0
     MAX_KMER_LEN    equ 10
-    
-    ; Mensajes del programa
-    welcome_msg     db LF, "=== ANALIZADOR DE ADN ===", LF
-                    db "Instituto Tecnológico de Chetumal", LF
-                    db "Ingeniería en Sistemas Computacionales", LF, LF, NULL
-    
-    filename_prompt db "Ingrese el nombre del archivo FASTA/FNA: ", NULL
-    k_prompt        db "Ingrese el valor de k (4-10): ", NULL
-    
-    processing_msg  db LF, "Procesando archivo...", LF, NULL
-    plasmid_msg     db "AVISO: El archivo contiene PLASMIDOS", LF, NULL
-    invalid_char_msg db "AVISO: Caracter invalido encontrado: ", NULL
-    
-    results_header  db LF, "=== RESULTADOS ===", LF
-                    db "K-mers encontrados y sus frecuencias:", LF, NULL
-    
-    search_prompt   db LF, "Buscar k-mer (ENTER para salir): ", NULL
-    found_msg       db "Encontrado: aparece ", NULL
-    not_found_msg   db "No encontrado", LF, NULL
-    times_msg       db " veces", LF, NULL
-    
-    goodbye_msg     db LF, "Programa terminado.", LF, NULL
-    
-    ; Mensajes de error
-    file_error_msg  db "Error: No se pudo abrir el archivo", LF, NULL
-    k_error_msg     db "Error: k debe estar entre 4 y 10", LF, NULL
-    memory_error_msg db "Error: Secuencia de ADN demasiado larga", LF, NULL
-    
-    ; Variables de trabajo
-    filename        times MAX_FILENAME, 0
-    dna_sequence    times MAX_DNA_SIZE, 0
-    search_buffer   times MAX_KMER_LEN+1, 0
-    temp_kmer       times MAX_KMER_LEN+1, 0
-    input_buffer    times 256, 0
-    
+    MAX_PATH_LEN    equ 256
+    MAX_FILE_SIZE   equ 1000000
+    MAX_KMERS       equ 1048576   ; 4^10 = 1,048,576
+
+    ; Mensajes
+    msg_k_prompt        db "Enter k (4-10): ", NULL
+    msg_filename        db "Enter filename: ", NULL
+    msg_invalid_k       db "Invalid k. Must be 4-10.", LF, NULL
+    msg_file_error      db "Error opening file.", LF, NULL
+    msg_plasmid         db "Plasmid detected. Sequence skipped.", LF, NULL
+    msg_invalid_char    db "Invalid character found: ", NULL
+    msg_clean_chars     db "Valid characters processed: ", NULL
+    msg_total_kmers     db "Total k-mers generated: ", NULL
+    msg_search_prompt   db "Search k-mer (or 'exit'): ", NULL
+    msg_found           db "Frequency: ", NULL
+    msg_not_found       db "K-mer not found.", LF, NULL
+    msg_exit            db "Exiting...", LF, NULL
+    newline             db LF, NULL
+    tab                 db "    ", NULL
+
+    ; Variables
     k_value         dq 0
-    dna_length      dq 0
+    filename        times MAX_PATH_LEN db NULL
     file_desc       dq 0
-    plasmid_count   dq 0
-    invalid_chars   dq 0
-    
-    ; Estructura para k-mers: [k-mer][frecuencia]
-    ; Cada entrada ocupa MAX_KMER_LEN+1 + 8 bytes
-    kmer_table      times MAX_KMERS * (MAX_KMER_LEN+1+8), 0
-    kmer_count      dq 0
+    file_size       dq 0
+    plasmid_flag    db 0
+    invalid_count   dq 0
+    clean_count     dq 0
+    total_kmers     dq 0
+    exit_cmd        db "exit", NULL
 
 section .bss
-    read_buffer     resb 4096
+    file_buffer     resb MAX_FILE_SIZE
+    clean_dna       resb MAX_FILE_SIZE
+    clean_len       resq 1
+    freq_table      resd MAX_KMERS
+    kmer_array      resb (16 * MAX_KMERS)  ; 12-byte string + 4-byte frequency
+    num_non_zero    resq 1
+    input_buffer    resb 256
+    char_buffer     resb 2
 
 section .text
     global _start
 
 _start:
-    ; Mostrar mensaje de bienvenida
-    mov rdi, welcome_msg
+    ; Pedir valor de k
+    mov rdi, msg_k_prompt
     call print_string
-    
-    ; Solicitar nombre de archivo
-    mov rdi, filename_prompt
-    call print_string
-    
-    mov rdi, filename
-    mov rsi, MAX_FILENAME
-    call read_string
-    
-    ; Solicitar valor de k
-get_k_value:
-    mov rdi, k_prompt
-    call print_string
-    
-    call read_integer
-    mov [k_value], rax
-    
-    ; Validar k (debe estar entre 4 y 10)
+    mov rdi, input_buffer
+    mov rsi, 256
+    call read_input
+    call parse_int
     cmp rax, 4
-    jl invalid_k
+    jl .invalid_k
     cmp rax, 10
-    jg invalid_k
-    jmp k_valid
-    
-invalid_k:
-    mov rdi, k_error_msg
+    jg .invalid_k
+    mov [k_value], rax
+
+    ; Pedir nombre de archivo
+    mov rdi, msg_filename
     call print_string
-    jmp get_k_value
-    
-k_valid:
-    ; Abrir archivo
-    mov rax, SYS_open
     mov rdi, filename
-    mov rsi, O_RDONLY
-    syscall
-    
-    cmp rax, 0
-    jl file_error
-    mov [file_desc], rax
-    
+    mov rsi, MAX_PATH_LEN
+    call read_input
+
     ; Procesar archivo
-    mov rdi, processing_msg
-    call print_string
-    
-    call process_fasta_file
-    
-    ; Cerrar archivo
-    mov rax, SYS_close
-    mov rdi, [file_desc]
-    syscall
-    
-    ; Generar k-mers
+    call open_file
+    cmp rax, 0
+    jl .file_error
+    mov [file_desc], rax
+
+    call read_file
+    call close_file
+    call process_dna
     call generate_kmers
-    
-    ; Ordenar k-mers por frecuencia
-    call sort_kmers
-    
-    ; Mostrar resultados
-    call display_results
-    
-    ; Modo búsqueda
-    call search_mode
-    
-    ; Terminar programa
-    mov rdi, goodbye_msg
-    call print_string
-    jmp exit_program
+    call build_kmer_array
+    call quicksort
+    jmp .search_loop
 
-file_error:
-    mov rdi, file_error_msg
+.invalid_k:
+    mov rdi, msg_invalid_k
     call print_string
-    jmp exit_program
+    jmp .exit
 
-; Función para procesar archivo FASTA
-process_fasta_file:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-    
-    mov r12, 0          ; Posición en dna_sequence
-    mov r13, 0          ; Flag para línea de encabezado
-    
-read_loop:
-    ; Leer chunk del archivo
-    mov rax, SYS_read
-    mov rdi, [file_desc]
-    mov rsi, read_buffer
-    mov rdx, 4096
-    syscall
-    
+.file_error:
+    mov rdi, msg_file_error
+    call print_string
+    jmp .exit
+
+.search_loop:
+    mov rdi, msg_search_prompt
+    call print_string
+    mov rdi, input_buffer
+    mov rsi, 256
+    call read_input
+
+    ; Verificar si es "exit"
+    mov rdi, input_buffer
+    mov rsi, exit_cmd
+    call strcmp
     cmp rax, 0
-    jle end_read        ; EOF o error
-    
-    mov rbx, 0          ; Índice en buffer
-    
-process_chunk:
-    cmp rbx, rax
-    jge read_loop
-    
-    mov cl, [read_buffer + rbx]
-    
-    ; Verificar si es línea de encabezado
-    cmp cl, '>'
-    je header_line
-    
-    ; Verificar si es salto de línea
-    cmp cl, LF
-    je next_char
-    cmp cl, 13          ; CR
-    je next_char
-    
-    ; Verificar si es carácter válido de ADN
-    cmp cl, 'A'
-    je valid_dna_char
-    cmp cl, 'T'
-    je valid_dna_char
-    cmp cl, 'C'
-    je valid_dna_char
-    cmp cl, 'G'
-    je valid_dna_char
-    cmp cl, 'N'         ; N se considera válido pero se reporta
-    je handle_n_char
-    
-    ; Carácter inválido
-    inc qword [invalid_chars]
-    call report_invalid_char
-    jmp next_char
-    
-valid_dna_char:
-    ; Verificar espacio disponible
-    cmp r12, MAX_DNA_SIZE-1
-    jge memory_full
-    
-    ; Agregar a secuencia
-    mov [dna_sequence + r12], cl
-    inc r12
-    jmp next_char
-    
-handle_n_char:
-    ; Tratamos N como carácter inválido pero lo reportamos
-    inc qword [invalid_chars]
-    jmp next_char
-    
-header_line:
-    ; Incrementar contador de plásmidos si no es el primero
-    cmp qword [plasmid_count], 0
-    je first_header
-    inc qword [plasmid_count]
-    
-first_header:
-    inc qword [plasmid_count]
-    
-    ; Saltar hasta el final de línea
-skip_header:
-    inc rbx
-    cmp rbx, rax
-    jge read_loop
-    mov cl, [read_buffer + rbx]
-    cmp cl, LF
-    jne skip_header
-    
-next_char:
-    inc rbx
-    jmp process_chunk
-    
-end_read:
-    ; Terminar secuencia con NULL
-    mov byte [dna_sequence + r12], NULL
-    mov [dna_length], r12
-    
-    ; Reportar plásmidos si hay más de uno
-    cmp qword [plasmid_count], 1
-    jle no_plasmids
-    mov rdi, plasmid_msg
-    call print_string
-    
-no_plasmids:
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-    
-memory_full:
-    mov rdi, memory_error_msg
-    call print_string
-    jmp exit_program
+    je .exit
 
-report_invalid_char:
-    push rax
-    push rbx
-    mov rdi, invalid_char_msg
-    call print_string
-    
-    ; Mostrar el carácter inválido
-    mov [temp_kmer], cl
-    mov byte [temp_kmer + 1], NULL
-    mov rdi, temp_kmer
-    call print_string
-    
-    mov rdi, newline
-    call print_string
-    
-    pop rbx
-    pop rax
-    ret
-
-; Función para generar k-mers
-generate_kmers:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-    push r14
-    
-    mov r12, 0                  ; Posición actual en ADN
-    mov qword [kmer_count], 0   ; Contador de k-mers únicos
-    
-kmer_loop:
-    ; Verificar si podemos extraer un k-mer completo
-    mov rax, [dna_length]
-    sub rax, [k_value]
-    cmp r12, rax
-    jg end_kmer_generation
-    
-    ; Extraer k-mer
-    mov r13, 0                  ; Índice en k-mer temporal
-    
-extract_kmer:
-    cmp r13, [k_value]
-    jge kmer_extracted
-    
-    mov al, [dna_sequence + r12 + r13]
-    mov [temp_kmer + r13], al
-    inc r13
-    jmp extract_kmer
-    
-kmer_extracted:
-    ; Terminar k-mer con NULL
-    mov byte [temp_kmer + r13], NULL
-    
-    ; Buscar si el k-mer ya existe en la tabla
-    call find_or_add_kmer
-    
-    inc r12
-    jmp kmer_loop
-    
-end_kmer_generation:
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-; Función para buscar o agregar k-mer
-find_or_add_kmer:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-    
-    mov r12, 0                  ; Índice en tabla de k-mers
-    
-search_table:
-    cmp r12, [kmer_count]
-    jge add_new_kmer
-    
-    ; Calcular posición del k-mer en tabla
-    mov rax, r12
-    mov rbx, MAX_KMER_LEN + 1 + 8
-    mul rbx
-    mov r13, rax                ; Offset en tabla
-    
-    ; Comparar k-mers
-    mov rdi, temp_kmer
-    mov rsi, kmer_table
-    add rsi, r13
-    call compare_strings
-    
-    cmp rax, 0
-    je found_kmer
-    
-    inc r12
-    jmp search_table
-    
-found_kmer:
-    ; Incrementar frecuencia
-    mov rax, r13
-    add rax, MAX_KMER_LEN + 1   ; Posición de frecuencia
-    inc qword [kmer_table + rax]
-    jmp end_find_add
-    
-add_new_kmer:
-    ; Verificar espacio disponible
-    cmp qword [kmer_count], MAX_KMERS
-    jge end_find_add
-    
-    ; Calcular posición para nuevo k-mer
-    mov rax, [kmer_count]
-    mov rbx, MAX_KMER_LEN + 1 + 8
-    mul rbx
-    mov r13, rax
-    
-    ; Copiar k-mer
-    mov rdi, kmer_table
-    add rdi, r13
-    mov rsi, temp_kmer
-    call copy_string
-    
-    ; Establecer frecuencia inicial en 1
-    mov rax, r13
-    add rax, MAX_KMER_LEN + 1
-    mov qword [kmer_table + rax], 1
-    
-    inc qword [kmer_count]
-    
-end_find_add:
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-; Función de ordenamiento burbuja por frecuencia (descendente)
-sort_kmers:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-    push r14
-    push r15
-    
-    mov r12, 0                  ; i = 0
-    
-outer_loop:
-    mov rax, [kmer_count]
-    dec rax
-    cmp r12, rax
-    jge end_sort
-    
-    mov r13, 0                  ; j = 0
-    
-inner_loop:
-    mov rax, [kmer_count]
-    sub rax, r12
-    dec rax
-    cmp r13, rax
-    jge next_outer
-    
-    ; Calcular posiciones de elementos a comparar
-    mov rax, r13
-    mov rbx, MAX_KMER_LEN + 1 + 8
-    mul rbx
-    mov r14, rax                ; Posición elemento j
-    
-    mov rax, r13
-    inc rax
-    mov rbx, MAX_KMER_LEN + 1 + 8
-    mul rbx
-    mov r15, rax                ; Posición elemento j+1
-    
-    ; Comparar frecuencias
-    mov rax, r14
-    add rax, MAX_KMER_LEN + 1
-    mov rbx, [kmer_table + rax] ; Frecuencia j
-    
-    mov rax, r15
-    add rax, MAX_KMER_LEN + 1
-    mov rcx, [kmer_table + rax] ; Frecuencia j+1
-    
-    cmp rbx, rcx
-    jge no_swap
-    
-    ; Intercambiar elementos completos
-    call swap_kmers
-    
-no_swap:
-    inc r13
-    jmp inner_loop
-    
-next_outer:
-    inc r12
-    jmp outer_loop
-    
-end_sort:
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-swap_kmers:
-    ; Intercambiar k-mers en posiciones r14 y r15
-    push rdi
-    push rsi
-    push rcx
-    
-    mov rcx, MAX_KMER_LEN + 1 + 8   ; Tamaño total de entrada
-    
-swap_loop:
-    cmp rcx, 0
-    je end_swap
-    
-    mov al, [kmer_table + r14]
-    mov bl, [kmer_table + r15]
-    mov [kmer_table + r14], bl
-    mov [kmer_table + r15], al
-    
-    inc r14
-    inc r15
-    dec rcx
-    jmp swap_loop
-    
-end_swap:
-    pop rcx
-    pop rsi
-    pop rdi
-    ret
-
-; Función para mostrar resultados
-display_results:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    
-    mov rdi, results_header
-    call print_string
-    
-    mov r12, 0                  ; Índice actual
-    
-display_loop:
-    cmp r12, [kmer_count]
-    jge end_display
-    
-    ; Calcular posición del k-mer
-    mov rax, r12
-    mov rbx, MAX_KMER_LEN + 1 + 8
-    mul rbx
-    mov rbx, rax
-    
-    ; Mostrar k-mer
-    mov rdi, kmer_table
-    add rdi, rbx
-    call print_string
-    
-    ; Mostrar espacio
-    mov rdi, space_msg
-    call print_string
-    
-    ; Mostrar frecuencia
-    add rbx, MAX_KMER_LEN + 1
-    mov rax, [kmer_table + rbx]
-    call print_integer
-    
-    ; Nueva línea
-    mov rdi, newline
-    call print_string
-    
-    inc r12
-    jmp display_loop
-    
-end_display:
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-; Modo de búsqueda interactivo
-search_mode:
-    push rbp
-    mov rbp, rsp
-    
-search_loop:
-    mov rdi, search_prompt
-    call print_string
-    
-    mov rdi, search_buffer
-    mov rsi, MAX_KMER_LEN
-    call read_string
-    
-    ; Verificar si está vacío (salir)
-    cmp byte [search_buffer], NULL
-    je end_search_mode
-    
     ; Buscar k-mer
+    mov rdi, input_buffer
+    mov rsi, [k_value]
     call search_kmer
+    cmp rax, -1
+    je .not_found
     
-    jmp search_loop
-    
-end_search_mode:
-    pop rbp
-    ret
-
-search_kmer:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    
-    mov r12, 0                  ; Índice en tabla
-    
-search_kmer_loop:
-    cmp r12, [kmer_count]
-    jge kmer_not_found
-    
-    ; Calcular posición
-    mov rax, r12
-    mov rbx, MAX_KMER_LEN + 1 + 8
-    mul rbx
-    mov rbx, rax
-    
-    ; Comparar
-    mov rdi, search_buffer
-    mov rsi, kmer_table
-    add rsi, rbx
-    call compare_strings
-    
-    cmp rax, 0
-    je kmer_found_search
-    
-    inc r12
-    jmp search_kmer_loop
-    
-kmer_found_search:
-    mov rdi, found_msg
+    mov rdi, msg_found
     call print_string
-    
-    ; Mostrar frecuencia
-    add rbx, MAX_KMER_LEN + 1
-    mov rax, [kmer_table + rbx]
-    call print_integer
-    
-    mov rdi, times_msg
+    mov rdi, rax
+    call print_uint
+    mov rdi, newline
     call print_string
-    jmp end_search_kmer
-    
-kmer_not_found:
-    mov rdi, not_found_msg
+    jmp .search_loop
+
+.not_found:
+    mov rdi, msg_not_found
     call print_string
-    
-end_search_kmer:
-    pop r12
-    pop rbx
-    pop rbp
-    ret
+    jmp .search_loop
 
-; Funciones auxiliares
-print_string:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push rdx
-    
-    ; Contar caracteres
-    mov rbx, rdi
-    mov rdx, 0
-    
-count_loop:
-    cmp byte [rbx], NULL
-    je print_str
-    inc rdx
-    inc rbx
-    jmp count_loop
-    
-print_str:
-    mov rax, SYS_write
-    mov rsi, rdi
-    mov rdi, STDOUT
-    syscall
-    
-    pop rdx
-    pop rbx
-    pop rbp
-    ret
-
-read_string:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push rcx
-    
-    mov rbx, rdi        ; Buffer destino
-    mov rcx, rsi        ; Tamaño máximo
-    
-    mov rax, SYS_read
-    mov rdi, STDIN
-    mov rsi, rbx
-    mov rdx, rcx
-    syscall
-    
-    ; Remover salto de línea
-    dec rax
-    mov byte [rbx + rax], NULL
-    
-    pop rcx
-    pop rbx
-    pop rbp
-    ret
-
-read_integer:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    
-    mov rdi, input_buffer
-    mov rsi, 10
-    call read_string
-    
-    ; Convertir string a integer
-    mov rdi, input_buffer
-    call string_to_int
-    
-    pop rbx
-    pop rbp
-    ret
-
-string_to_int:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    
-    mov rax, 0          ; Resultado
-    mov rbx, 0          ; Índice
-    
-convert_loop:
-    mov cl, [rdi + rbx]
-    cmp cl, NULL
-    je end_convert
-    
-    sub cl, '0'
-    imul rax, 10
-    add rax, rcx
-    inc rbx
-    jmp convert_loop
-    
-end_convert:
-    pop rbx
-    pop rbp
-    ret
-
-print_integer:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push rcx
-    push rdx
-    
-    mov rbx, 10         ; Base
-    mov rcx, 0          ; Contador de dígitos
-    
-    ; Manejar caso especial de 0
-    cmp rax, 0
-    jne convert_digits
-    
-    mov byte [input_buffer], '0'
-    mov byte [input_buffer + 1], NULL
-    mov rdi, input_buffer
+.exit:
+    mov rdi, msg_exit
     call print_string
-    jmp end_print_int
-    
-convert_digits:
-    mov rdx, 0
-    div rbx
-    add rdx, '0'
-    push rdx
-    inc rcx
-    
-    cmp rax, 0
-    jne convert_digits
-    
-    ; Reconstruir número en buffer
-    mov rbx, 0
-    
-build_string:
-    pop rdx
-    mov [input_buffer + rbx], dl
-    inc rbx
-    dec rcx
-    cmp rcx, 0
-    jne build_string
-    
-    mov byte [input_buffer + rbx], NULL
-    mov rdi, input_buffer
-    call print_string
-    
-end_print_int:
-    pop rdx
-    pop rcx
-    pop rbx
-    pop rbp
-    ret
-
-compare_strings:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    
-    mov rbx, 0
-    
-cmp_loop:
-    mov al, [rdi + rbx]
-    mov cl, [rsi + rbx]
-    
-    cmp al, cl
-    jne strings_different
-    
-    cmp al, NULL
-    je strings_equal
-    
-    inc rbx
-    jmp cmp_loop
-    
-strings_equal:
-    mov rax, 0
-    jmp end_compare
-    
-strings_different:
-    mov rax, 1
-    
-end_compare:
-    pop rbx
-    pop rbp
-    ret
-
-copy_string:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    
-    mov rbx, 0
-    
-copy_loop:
-    mov al, [rsi + rbx]
-    mov [rdi + rbx], al
-    
-    cmp al, NULL
-    je end_copy
-    
-    inc rbx
-    jmp copy_loop
-    
-end_copy:
-    pop rbx
-    pop rbp
-    ret
-
-exit_program:
     mov rax, SYS_exit
     mov rdi, EXIT_SUCCESS
     syscall
 
-; Datos adicionales
-section .data
-    newline     db LF, NULL
-    space_msg   db " ", NULL
+; ===== Funciones principales =====
+
+; Abrir archivo para lectura
+open_file:
+    mov rax, SYS_open
+    mov rdi, filename
+    mov rsi, O_RDONLY
+    syscall
+    ret
+
+; Leer archivo completo
+read_file:
+    mov rax, SYS_read
+    mov rdi, [file_desc]
+    mov rsi, file_buffer
+    mov rdx, MAX_FILE_SIZE
+    syscall
+    mov [file_size], rax
+    ret
+
+; Cerrar archivo
+close_file:
+    mov rax, SYS_close
+    mov rdi, [file_desc]
+    syscall
+    ret
+
+; Procesar secuencia de ADN
+process_dna:
+    mov rsi, file_buffer        ; Puntero al buffer del archivo
+    mov rdi, clean_dna          ; Puntero al buffer limpio
+    mov rcx, [file_size]        ; Tamaño del archivo
+    xor rbx, rbx                ; Contador de caracteres limpios
+    xor r8, r8                  ; Flag para plásmido (0 = no plásmido)
+
+.process_loop:
+    cmp rcx, 0
+    je .process_done
+    mov al, [rsi]
+
+    ; Verificar si es inicio de cabecera
+    cmp al, '>'
+    jne .check_newline
+    mov r8, 1                   ; Activar flag de plásmido
+    jmp .skip_char
+
+.check_newline:
+    cmp al, LF
+    jne .check_valid_char
+    mov r8, 0                   ; Desactivar flag de plásmido al final de línea
+    jmp .skip_char
+
+.check_valid_char:
+    ; Si estamos en sección de plásmido, saltar
+    cmp r8, 1
+    je .skip_char
+
+    ; Validar caracteres de ADN
+    cmp al, 'A'
+    je .valid_char
+    cmp al, 'C'
+    je .valid_char
+    cmp al, 'G'
+    je .valid_char
+    cmp al, 'T'
+    je .valid_char
+    cmp al, 'a'
+    je .to_upper
+    cmp al, 'c'
+    je .to_upper
+    cmp al, 'g'
+    je .to_upper
+    cmp al, 't'
+    je .to_upper
+
+    ; Caracter inválido
+    inc qword [invalid_count]
+    jmp .skip_char
+
+.to_upper:
+    sub al, 32                 ; Convertir a mayúsculas
+
+.valid_char:
+    mov [rdi], al              ; Guardar caracter válido
+    inc rdi
+    inc rbx                    ; Incrementar contador de caracteres limpios
+    jmp .next_char
+
+.skip_char:
+    ; Mostrar mensaje de plásmido solo la primera vez
+    cmp r8, 1
+    jne .next_char
+    cmp byte [plasmid_flag], 0
+    jne .next_char
+    mov byte [plasmid_flag], 1
+    mov rdi, msg_plasmid
+    call print_string
+
+.next_char:
+    inc rsi
+    dec rcx
+    jmp .process_loop
+
+.process_done:
+    mov byte [rdi], NULL       ; Terminar con NULL
+    mov [clean_len], rbx       ; Guardar longitud de secuencia limpia
+    mov [clean_count], rbx
+    ret
+
+; Generar k-mers y contar frecuencias
+generate_kmers:
+    mov rcx, [clean_len]
+    mov r8, [k_value]
+    sub rcx, r8                ; RCX = longitud - k
+    jle .generate_done         ; Salir si no hay suficientes caracteres
+
+    mov rsi, clean_dna         ; Puntero a secuencia limpia
+    xor r9, r9                 ; Contador de posición
+
+.generate_loop:
+    ; Calcular índice para el k-mer actual
+    mov rdi, rsi
+    mov r10, r8                ; k_value
+    xor rax, rax               ; Índice acumulado
+    xor r11, r11               ; Contador interno
+
+.index_loop:
+    mov bl, [rdi]
+    shl rax, 2                ; Multiplicar índice por 4 (base 4)
+
+    ; Mapear caracter a valor
+    cmp bl, 'A'
+    je .a_char
+    cmp bl, 'C'
+    je .c_char
+    cmp bl, 'G'
+    je .g_char
+    cmp bl, 'T'
+    je .t_char
+
+.a_char:
+    ; A = 00 (0)
+    jmp .next_char_index
+
+.c_char:
+    ; C = 01 (1)
+    or rax, 1
+    jmp .next_char_index
+
+.g_char:
+    ; G = 10 (2)
+    or rax, 2
+    jmp .next_char_index
+
+.t_char:
+    ; T = 11 (3)
+    or rax, 3
+
+.next_char_index:
+    inc rdi
+    inc r11
+    cmp r11, r10
+    jl .index_loop
+
+    ; Incrementar frecuencia en tabla
+    mov r11d, [freq_table + rax*4]
+    inc r11d
+    mov [freq_table + rax*4], r11d
+
+    ; Siguiente posición
+    inc rsi
+    inc r9
+    cmp r9, rcx
+    jl .generate_loop
+
+.generate_done:
+    mov [total_kmers], r9
+    ret
+
+; Construir arreglo de k-mers no cero
+build_kmer_array:
+    mov rcx, MAX_KMERS
+    xor r9, r9                ; Contador de k-mers no cero
+    mov r10, [k_value]        ; Longitud k
+
+    ; Calcular máximo índice (4^k)
+    mov rax, 1
+    mov rcx, r10
+.calc_max_index:
+    shl rax, 2
+    loop .calc_max_index
+    mov rcx, rax              ; RCX = max_index
+
+    xor r11, r11              ; Índice actual
+
+.array_loop:
+    cmp r11, rcx
+    jge .array_done
+
+    ; Verificar frecuencia
+    mov eax, [freq_table + r11*4]
+    test eax, eax
+    jz .next_index
+
+    ; Guardar frecuencia
+    mov r12, r9
+    imul r12, 16
+    mov [kmer_array + r12 + 12], eax
+
+    ; Convertir índice a k-mer
+    lea rdi, [kmer_array + r12] ; Buffer para cadena
+    mov rsi, r11               ; Índice
+    mov rdx, r10               ; k
+    call decode_kmer
+
+    ; Incrementar contador
+    inc r9
+
+.next_index:
+    inc r11
+    jmp .array_loop
+
+.array_done:
+    mov [num_non_zero], r9
+    ret
+
+; Ordenar k-mers con Quicksort
+quicksort:
+    mov r12, [num_non_zero]
+    test r12, r12
+    jz .done
+
+    ; Preparar parámetros para quicksort
+    xor rdi, rdi             ; left = 0
+    dec r12                  ; right = num_non_zero - 1
+    mov rsi, r12
+    mov rdx, kmer_array
+    call quicksort_recursive
+
+.done:
+    ret
+
+quicksort_recursive:
+    ; rdi = left, rsi = right, rdx = array
+    cmp rdi, rsi
+    jge .end_recursive
+
+    ; Particionar
+    call partition
+    mov r8, rax             ; pivot_index
+
+    ; Ordenar izquierda
+    push rsi
+    push r8
+    mov rsi, r8
+    dec rsi
+    call quicksort_recursive
+    pop r8
+    pop rsi
+
+    ; Ordenar derecha
+    push rdi
+    mov rdi, r8
+    inc rdi
+    call quicksort_recursive
+    pop rdi
+
+.end_recursive:
+    ret
+
+partition:
+    ; rdi = left, rsi = right
+    mov r9, rsi             ; pivot = right
+    mov r10, rdi            ; i = left - 1
+    dec r10
+
+    mov r11, rdi            ; j = left
+
+.partition_loop:
+    cmp r11, rsi
+    jge .end_partition
+
+    ; Comparar array[j] con array[pivot]
+    mov rax, r11
+    imul rax, 16
+    lea r12, [kmer_array + rax]
+
+    mov rax, r9
+    imul rax, 16
+    lea r13, [kmer_array + rax]
+
+    mov rdi, r12
+    mov rsi, r13
+    call compare_kmers
+    cmp eax, 0
+    jge .next_j
+
+    ; Incrementar i e intercambiar
+    inc r10
+    mov rdi, r10
+    mov rsi, r11
+    call swap_kmers
+
+.next_j:
+    inc r11
+    jmp .partition_loop
+
+.end_partition:
+    ; Intercambiar array[i+1] con array[pivot]
+    inc r10
+    mov rdi, r10
+    mov rsi, r9
+    call swap_kmers
+
+    mov rax, r10            ; Retornar índice del pivote
+    ret
+
+; Intercambiar dos elementos en el arreglo
+swap_kmers:
+    ; rdi = index1, rsi = index2
+    imul rdi, 16
+    imul rsi, 16
+
+    ; Intercambiar cadena (12 bytes)
+    mov rax, [kmer_array + rdi]
+    mov rbx, [kmer_array + rsi]
+    mov [kmer_array + rsi], rax
+    mov [kmer_array + rdi], rbx
+
+    mov rax, [kmer_array + rdi + 8]
+    mov rbx, [kmer_array + rsi + 8]
+    mov [kmer_array + rsi + 8], rax
+    mov [kmer_array + rdi + 8], rbx
+
+    ; Intercambiar frecuencia (4 bytes)
+    mov eax, [kmer_array + rdi + 12]
+    mov ebx, [kmer_array + rsi + 12]
+    mov [kmer_array + rsi + 12], eax
+    mov [kmer_array + rdi + 12], ebx
+    ret
+
+; Buscar k-mer en tabla de frecuencias
+search_kmer:
+    ; rdi = puntero a cadena, rsi = k
+    call encode_kmer
+    cmp rax, MAX_KMERS
+    jae .not_found
+    
+    mov ebx, [freq_table + rax*4]
+    test ebx, ebx
+    jz .not_found
+    mov eax, ebx
+    ret
+
+.not_found:
+    mov rax, -1
+    ret
+
+; ===== Funciones de utilidad =====
+
+; Imprimir cadena (rdi = puntero a cadena)
+print_string:
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov rdx, 0
+
+.count_loop:
+    cmp byte [rbx], NULL
+    je .count_done
+    inc rdx
+    inc rbx
+    jmp .count_loop
+
+.count_done:
+    test rdx, rdx
+    jz .print_done
+
+    mov rax, SYS_write
+    mov rsi, rdi
+    mov rdi, STDOUT
+    syscall
+
+.print_done:
+    pop r12
+    pop rbx
+    ret
+
+; Leer entrada (rdi = buffer, rsi = tamaño máximo)
+read_input:
+    push rbx
+    mov rbx, rdi
+
+    ; Leer de STDIN
+    mov rax, SYS_read
+    mov rdi, STDIN
+    mov rdx, rsi
+    syscall
+
+    ; Reemplazar LF con NULL
+    mov rcx, rax
+    cmp rcx, 0
+    jle .read_done
+    dec rcx
+    mov byte [rbx + rcx], NULL
+
+.read_done:
+    pop rbx
+    ret
+
+; Convertir cadena a entero (rdi = cadena)
+parse_int:
+    xor rax, rax
+    xor rcx, rcx
+
+.convert_loop:
+    mov cl, [rdi]
+    test cl, cl
+    jz .done
+
+    cmp cl, '0'
+    jb .done
+    cmp cl, '9'
+    ja .done
+
+    sub cl, '0'
+    imul rax, 10
+    add rax, rcx
+    inc rdi
+    jmp .convert_loop
+
+.done:
+    ret
+
+; Comparar cadenas (rdi = str1, rsi = str2)
+strcmp:
+    mov al, [rdi]
+    mov bl, [rsi]
+    test al, al
+    jz .check_end
+    cmp al, bl
+    jne .not_equal
+    inc rdi
+    inc rsi
+    jmp strcmp
+
+.check_end:
+    test bl, bl
+    jnz .not_equal
+    xor rax, rax
+    ret
+
+.not_equal:
+    mov rax, 1
+    ret
+
+; Comparar k-mers (rdi = elem1, rsi = elem2)
+compare_kmers:
+    push rbx
+    mov rbx, rsi
+
+.compare_loop:
+    mov al, [rdi]
+    mov bl, [rsi]
+    test al, al
+    jz .check_end
+    cmp al, bl
+    jne .not_equal
+    inc rdi
+    inc rsi
+    jmp .compare_loop
+
+.check_end:
+    test bl, bl
+    jnz .not_equal
+    xor eax, eax
+    jmp .done
+
+.not_equal:
+    cmp al, bl
+    jb .less
+    mov eax, 1
+    jmp .done
+.less:
+    mov eax, -1
+
+.done:
+    pop rbx
+    ret
+
+; Codificar k-mer a índice (rdi = cadena, rsi = k)
+encode_kmer:
+    xor rax, rax
+    xor rcx, rcx
+
+.encode_loop:
+    cmp rcx, rsi
+    jge .encode_done
+
+    shl rax, 2
+    mov bl, [rdi]
+
+    cmp bl, 'A'
+    je .next_char
+    cmp bl, 'C'
+    je .c_char
+    cmp bl, 'G'
+    je .g_char
+    cmp bl, 'T'
+    je .t_char
+
+.c_char:
+    or al, 1
+    jmp .next_char
+
+.g_char:
+    or al, 2
+    jmp .next_char
+
+.t_char:
+    or al, 3
+
+.next_char:
+    inc rdi
+    inc rcx
+    jmp .encode_loop
+
+.encode_done:
+    ret
+
+; Decodificar índice a k-mer (rdi = buffer, rsi = índice, rdx = k)
+decode_kmer:
+    mov r8, rdx
+    lea r9, [rdi + rdx]  ; Fin del buffer
+    mov byte [r9], NULL  ; Terminar con NULL
+
+.decode_loop:
+    dec r9
+    dec r8
+    mov al, sil
+    and al, 3
+
+    cmp al, 0
+    je .a_char
+    cmp al, 1
+    je .c_char
+    cmp al, 2
+    je .g_char
+    cmp al, 3
+    je .t_char
+
+.a_char:
+    mov byte [r9], 'A'
+    jmp .next
+
+.c_char:
+    mov byte [r9], 'C'
+    jmp .next
+
+.g_char:
+    mov byte [r9], 'G'
+    jmp .next
+
+.t_char:
+    mov byte [r9], 'T'
+
+.next:
+    shr rsi, 2
+    cmp r8, 0
+    jg .decode_loop
+    ret
+
+; Imprimir entero sin signo (rdi = número)
+print_uint:
+    mov rax, rdi
+    mov rdi, char_buffer
+    mov rbx, 10
+    mov rcx, 0
+
+.convert_loop:
+    xor rdx, rdx
+    div rbx
+    add dl, '0'
+    push rdx
+    inc rcx
+    test rax, rax
+    jnz .convert_loop
+
+.output_loop:
+    pop rax
+    mov [char_buffer], al
+    mov rsi, char_buffer
+    mov rdx, 1
+    mov rax, SYS_write
+    mov rdi, STDOUT
+    push rcx
+    syscall
+    pop rcx
+    loop .output_loop
+    ret
