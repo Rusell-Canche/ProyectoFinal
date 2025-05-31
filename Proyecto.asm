@@ -26,7 +26,7 @@ O_TRUNC equ 0x200
 S_IRUSR equ 00400q            ; user read permission
 S_IWUSR equ 00200q            ; user write permission
 BUFF_SIZE equ 255             ; tamaño del buffer de lectura
-MAX_ADN_SIZE equ 100000       ; tamaño máximo para datos de ADN (100KB)
+MAX_ADN_SIZE equ 4000000       ; tamaño máximo para datos de ADN (100KB)
 
 ; Mensajes y nombres de archivo
 newLine db LF, NULL

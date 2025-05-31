@@ -27,7 +27,7 @@
     27                                 S_IRUSR equ 00400
     28                                 S_IWUSR equ 00200
     29                                 BUFF_SIZE equ 255
-    30                                 MAX_ADN_SIZE equ 100000
+    30                                 MAX_ADN_SIZE equ 4000000
     31                                 
     32                                 
     33 00000000 0A00                   newLine db LF, NULL
@@ -68,10 +68,10 @@
     68                                 [section .bss]
     69 00000000 <gap>                  readBuffer resb BUFF_SIZE
     70 000000FF <gap>                  adnBuffer resb MAX_ADN_SIZE
-    71 0001879F 0000000000000000       fileDesc dq 0
-    72 000187A7 0000000000000000       outFileDesc dq 0
-    73 000187AF <gap>                  kVal resb 1
-    74 000187B0 <gap>                  adnLength resq 1
+    71 003D09FF 0000000000000000       fileDesc dq 0
+    72 003D0A07 0000000000000000       outFileDesc dq 0
+    73 003D0A0F <gap>                  kVal resb 1
+    74 003D0A10 <gap>                  adnLength resq 1
     75                                 
     76                                 
     77                                 [section .text]
@@ -202,7 +202,7 @@
    202 0000011B 49FFC7                  inc r15
    203                                 
    204                                 
-   205 0000011E 4981FFA0860100          cmp r15, MAX_ADN_SIZE
+   205 0000011E 4981FF00093D00          cmp r15, MAX_ADN_SIZE
    206 00000125 732A                    jae .done
    207                                 
    208 00000127 EB12                    jmp .nextByte
