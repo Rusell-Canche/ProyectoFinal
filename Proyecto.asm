@@ -1,8 +1,7 @@
 ; Programa para analizar palabras de ADN en archivos FASTA/FNA
 ; Caracteristicas:
-;   - Lee archivos FASTA/FNA, omite lineas de plasmidos
-;   - Genera palabras de longitud k (4-10) y cuenta frecuencias
-;   - Permite busquedas interactivas (pendiente)
+;   - Lee archivos FASTA/FNA, omite lineas de cabecera
+;   - Genera palabras de longitud k (4-10)
 ;   - Guarda palabras en archivo "palabras.txt"
 
 section .data
@@ -40,6 +39,7 @@ errMsgRead db "Error leyendo archivo.", LF, NULL
 errMsgWrite db "Error escribiendo archivo.", LF, NULL
 errMsgK db "Error: k debe ser entre 4 y 10.", LF, NULL
 successMsg db "Palabras guardadas en palabras.txt", LF, NULL
+crlf db 13, 10                ; CR + LF para compatibilidad Windows
 
 ;-------------------------------------------------------
 section .bss
@@ -114,6 +114,7 @@ openInputFile:
 .error:
     mov rdi, errMsgOpen
     call printStr
+    mov rax, -1
     ret
 
 ;-------------------------------------------------------
@@ -176,6 +177,11 @@ readFASTA:
     ; Almacenar en buffer de ADN
     mov [adnBuffer + r15], al
     inc r15
+    
+    ; Verificar límite máximo
+    cmp r15, MAX_ADN_SIZE
+    jae .done                 ; detener si se alcanza el límite
+    
     jmp .nextByte
 
 .startHeader:
@@ -255,36 +261,41 @@ generateWords:
     mov [outFileDesc], rax
     
     ; Calcular parámetros
-    movzx rcx, byte [kVal]    ; RCX = k
+    movzx rbx, byte [kVal]    ; RBX = k (preservar)
     mov r14, [adnLength]      ; longitud ADN
-    sub r14, rcx              ; máximo índice
-    inc r14
-    xor r15, r15              ; índice actual
-    
+    mov rax, r14
+    sub rax, rbx              ; RAX = n - k
+    jl .closeFile             ; si n < k, no hay palabras
+    inc rax                   ; RAX = número de palabras (n - k + 1)
+    mov r15, rax              ; R15 = contador de palabras
+    xor r14, r14              ; índice actual en buffer ADN (R14)
+
     ; Generar cada palabra
 .wordLoop:
-    cmp r15, r14
-    jge .closeFile
+    test r15, r15             ; verificar si quedan palabras
+    jz .closeFile
     
     ; Escribir palabra en archivo
     mov rax, SYS_write
     mov rdi, [outFileDesc]
-    lea rsi, [adnBuffer + r15]
-    mov rdx, rcx              ; longitud k
+    lea rsi, [adnBuffer + r14]
+    mov rdx, rbx              ; longitud k
     syscall
     cmp rax, 0
     jl .writeError
     
-    ; Escribir salto de línea
+    ; Escribir salto de línea (CR+LF para compatibilidad)
     mov rax, SYS_write
     mov rdi, [outFileDesc]
-    mov rsi, newLine
-    mov rdx, 1
+    mov rsi, crlf
+    mov rdx, 2
     syscall
     cmp rax, 0
     jl .writeError
     
-    inc r15
+    ; Actualizar índices
+    inc r14                   ; siguiente posición inicial
+    dec r15                   ; decrementar contador de palabras
     jmp .wordLoop
 
 .closeFile:
@@ -306,6 +317,7 @@ generateWords:
 ; rdi = dirección de la cadena terminada en NULL
 printStr:
     push rbx
+    push r12
     ; Contar caracteres
     mov rbx, rdi
     mov rdx, 0
@@ -326,5 +338,6 @@ printStr:
     syscall
 
 .printDone:
+    pop r12
     pop rbx
     ret
