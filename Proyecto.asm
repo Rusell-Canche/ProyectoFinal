@@ -1,24 +1,10 @@
-/*
-Se pide desarrollar una solución, para armar palabras de ADN, así como su frecuencia de aparición; de
-acuerdo con un tamaño k que deberá pedirle al usuario (valores de k deben de ser entre 4 y 10); una vez
-armada las palabras se pide que se realice el conteo de aparición de cada palabra, así mismo se deberá
-desarrollar un mecanismo de búsqueda de palabras, en el cual, el usuario proporcionará una palabra y el
-programa deberá informar si la palabra se encuentra, cuál es su frecuencia de aparición.
-Ejemplo
-Usuario pide PALABRAS DE 5
-Usando una cadena de ADN: AGCTTTTNCATTCTGACTGCAACGGGCAATATG (Se usarán archivo
-fna o archivos fasta)
-Se inicia de izquierda a derecha por la letra A y se toman 5 letras (tomando la primera de inicio) la
-primera palabra seria AGTTT, la siguiente palabra se toma al correr la posición inicial en 1, es decir la
-segunda palabra inicia en la posición 2 que en este caso es la G y se toman 5 letra quedaría GCTTTT, se
-corre una posición y se toman 5 en este caso inicia con la C y quedaría la palabra CTTTT y así
-sucesivamente hasta agotar la cadena del archivo.
-La salida de las palabras sería algo así y sus frecuencias de aparición
+; Programa para analizar palabras de ADN en archivos FASTA/FNA
+; Caracteristicas:
+;   - Lee archivos FASTA/FNA, omite lineas de plasmidos
+;   - Genera palabras de longitud k (4-10) y cuenta frecuencias
+;   - Ordena palabras alfabeticamente
+;   - Permite busquedas interactivas
 
-Integrantes: 
-Canche Ciau Rusell Emmanuel
-Gutierrez Perez Claudio Habraham
-*/
 section .data
     ; Constantes
     EXIT_SUCCESS    equ 0
@@ -39,31 +25,31 @@ section .data
     MAX_KMERS       equ 1048576   ; 4^10 = 1,048,576
 
     ; Mensajes
-    msg_k_prompt        db "Enter k (4-10): ", NULL
-    msg_filename        db "Enter filename: ", NULL
-    msg_invalid_k       db "Invalid k. Must be 4-10.", LF, NULL
-    msg_file_error      db "Error opening file.", LF, NULL
-    msg_plasmid         db "Plasmid detected. Sequence skipped.", LF, NULL
-    msg_invalid_char    db "Invalid character found: ", NULL
-    msg_clean_chars     db "Valid characters processed: ", NULL
-    msg_total_kmers     db "Total k-mers generated: ", NULL
-    msg_search_prompt   db "Search k-mer (or 'exit'): ", NULL
-    msg_found           db "Frequency: ", NULL
-    msg_not_found       db "K-mer not found.", LF, NULL
-    msg_exit            db "Exiting...", LF, NULL
-    newline             db LF, NULL
-    tab                 db "    ", NULL
+    msg_k_prompt        db "Enter k (4-10): ", 0
+    msg_filename        db "Enter filename: ", 0
+    msg_invalid_k       db "Invalid k. Must be 4-10.", LF, 0
+    msg_file_error      db "Error opening file.", LF, 0
+    msg_plasmid         db "Plasmid detected. Sequence skipped.", LF, 0
+    msg_invalid_char    db "Invalid character found: ", 0
+    msg_clean_chars     db "Valid characters processed: ", 0
+    msg_total_kmers     db "Total k-mers generated: ", 0
+    msg_search_prompt   db "Search k-mer (or 'exit'): ", 0
+    msg_found           db "Frequency: ", 0
+    msg_not_found       db "K-mer not found.", LF, 0
+    msg_exit            db "Exiting...", LF, 0
+    newline             db LF, 0
+    tab                 db "    ", 0
 
     ; Variables
     k_value         dq 0
-    filename        times MAX_PATH_LEN db NULL
+    filename        times MAX_PATH_LEN db 0
     file_desc       dq 0
     file_size       dq 0
     plasmid_flag    db 0
     invalid_count   dq 0
     clean_count     dq 0
     total_kmers     dq 0
-    exit_cmd        db "exit", NULL
+    exit_cmd        db "exit", 0
 
 section .bss
     file_buffer     resb MAX_FILE_SIZE
@@ -197,7 +183,7 @@ process_dna:
     mov rdi, clean_dna          ; Puntero al buffer limpio
     mov rcx, [file_size]        ; Tamaño del archivo
     xor rbx, rbx                ; Contador de caracteres limpios
-    xor r8, r8                  ; Flag para plásmido (0 = no plásmido)
+    xor r8, r8                  ; Flag para plasmido (0 = no plasmido)
 
 .process_loop:
     cmp rcx, 0
@@ -207,17 +193,17 @@ process_dna:
     ; Verificar si es inicio de cabecera
     cmp al, '>'
     jne .check_newline
-    mov r8, 1                   ; Activar flag de plásmido
+    mov r8, 1                   ; Activar flag de plasmido
     jmp .skip_char
 
 .check_newline:
     cmp al, LF
     jne .check_valid_char
-    mov r8, 0                   ; Desactivar flag de plásmido al final de línea
+    mov r8, 0                   ; Desactivar flag de plasmido al final de linea
     jmp .skip_char
 
 .check_valid_char:
-    ; Si estamos en sección de plásmido, saltar
+    ; Si estamos en seccion de plasmido, saltar
     cmp r8, 1
     je .skip_char
 
@@ -239,21 +225,21 @@ process_dna:
     cmp al, 't'
     je .to_upper
 
-    ; Caracter inválido
+    ; Caracter invalido
     inc qword [invalid_count]
     jmp .skip_char
 
 .to_upper:
-    sub al, 32                 ; Convertir a mayúsculas
+    sub al, 32                 ; Convertir a mayusculas
 
 .valid_char:
-    mov [rdi], al              ; Guardar caracter válido
+    mov [rdi], al              ; Guardar caracter valido
     inc rdi
     inc rbx                    ; Incrementar contador de caracteres limpios
     jmp .next_char
 
 .skip_char:
-    ; Mostrar mensaje de plásmido solo la primera vez
+    ; Mostrar mensaje de plasmido solo la primera vez
     cmp r8, 1
     jne .next_char
     cmp byte [plasmid_flag], 0
@@ -268,7 +254,7 @@ process_dna:
     jmp .process_loop
 
 .process_done:
-    mov byte [rdi], NULL       ; Terminar con NULL
+    mov byte [rdi], 0          ; Terminar con NULL
     mov [clean_len], rbx       ; Guardar longitud de secuencia limpia
     mov [clean_count], rbx
     ret
@@ -281,18 +267,18 @@ generate_kmers:
     jle .generate_done         ; Salir si no hay suficientes caracteres
 
     mov rsi, clean_dna         ; Puntero a secuencia limpia
-    xor r9, r9                 ; Contador de posición
+    xor r9, r9                 ; Contador de posicion
 
 .generate_loop:
-    ; Calcular índice para el k-mer actual
+    ; Calcular indice para el k-mer actual
     mov rdi, rsi
     mov r10, r8                ; k_value
-    xor rax, rax               ; Índice acumulado
+    xor rax, rax               ; Indice acumulado
     xor r11, r11               ; Contador interno
 
 .index_loop:
     mov bl, [rdi]
-    shl rax, 2                ; Multiplicar índice por 4 (base 4)
+    shl rax, 2                ; Multiplicar indice por 4 (base 4)
 
     ; Mapear caracter a valor
     cmp bl, 'A'
@@ -333,7 +319,7 @@ generate_kmers:
     inc r11d
     mov [freq_table + rax*4], r11d
 
-    ; Siguiente posición
+    ; Siguiente posicion
     inc rsi
     inc r9
     cmp r9, rcx
@@ -345,19 +331,16 @@ generate_kmers:
 
 ; Construir arreglo de k-mers no cero
 build_kmer_array:
-    mov rcx, MAX_KMERS
-    xor r9, r9                ; Contador de k-mers no cero
-    mov r10, [k_value]        ; Longitud k
-
-    ; Calcular máximo índice (4^k)
+    ; Calcular maximo indice (4^k)
+    mov rcx, [k_value]
     mov rax, 1
-    mov rcx, r10
 .calc_max_index:
     shl rax, 2
     loop .calc_max_index
     mov rcx, rax              ; RCX = max_index
 
-    xor r11, r11              ; Índice actual
+    xor r11, r11              ; Indice actual
+    xor r9, r9                ; Contador de k-mers no cero
 
 .array_loop:
     cmp r11, rcx
@@ -373,10 +356,10 @@ build_kmer_array:
     imul r12, 16
     mov [kmer_array + r12 + 12], eax
 
-    ; Convertir índice a k-mer
+    ; Convertir indice a k-mer
     lea rdi, [kmer_array + r12] ; Buffer para cadena
-    mov rsi, r11               ; Índice
-    mov rdx, r10               ; k
+    mov rsi, r11               ; Indice
+    mov rdx, [k_value]         ; k
     call decode_kmer
 
     ; Incrementar contador
@@ -396,18 +379,17 @@ quicksort:
     test r12, r12
     jz .done
 
-    ; Preparar parámetros para quicksort
+    ; Preparar parametros para quicksort
     xor rdi, rdi             ; left = 0
     dec r12                  ; right = num_non_zero - 1
     mov rsi, r12
-    mov rdx, kmer_array
     call quicksort_recursive
 
 .done:
     ret
 
 quicksort_recursive:
-    ; rdi = left, rsi = right, rdx = array
+    ; rdi = left, rsi = right
     cmp rdi, rsi
     jge .end_recursive
 
@@ -478,7 +460,7 @@ partition:
     mov rsi, r9
     call swap_kmers
 
-    mov rax, r10            ; Retornar índice del pivote
+    mov rax, r10            ; Retornar indice del pivote
     ret
 
 ; Intercambiar dos elementos en el arreglo
@@ -532,7 +514,7 @@ print_string:
     mov rdx, 0
 
 .count_loop:
-    cmp byte [rbx], NULL
+    cmp byte [rbx], 0
     je .count_done
     inc rdx
     inc rbx
@@ -552,7 +534,7 @@ print_string:
     pop rbx
     ret
 
-; Leer entrada (rdi = buffer, rsi = tamaño máximo)
+; Leer entrada (rdi = buffer, rsi = tamaño maximo)
 read_input:
     push rbx
     mov rbx, rdi
@@ -568,7 +550,7 @@ read_input:
     cmp rcx, 0
     jle .read_done
     dec rcx
-    mov byte [rbx + rcx], NULL
+    mov byte [rbx + rcx], 0
 
 .read_done:
     pop rbx
@@ -654,7 +636,7 @@ compare_kmers:
     pop rbx
     ret
 
-; Codificar k-mer a índice (rdi = cadena, rsi = k)
+; Codificar k-mer a indice (rdi = cadena, rsi = k)
 encode_kmer:
     xor rax, rax
     xor rcx, rcx
@@ -694,11 +676,11 @@ encode_kmer:
 .encode_done:
     ret
 
-; Decodificar índice a k-mer (rdi = buffer, rsi = índice, rdx = k)
+; Decodificar indice a k-mer (rdi = buffer, rsi = indice, rdx = k)
 decode_kmer:
     mov r8, rdx
     lea r9, [rdi + rdx]  ; Fin del buffer
-    mov byte [r9], NULL  ; Terminar con NULL
+    mov byte [r9], 0     ; Terminar con NULL
 
 .decode_loop:
     dec r9
@@ -736,10 +718,9 @@ decode_kmer:
     jg .decode_loop
     ret
 
-; Imprimir entero sin signo (rdi = número)
+; Imprimir entero sin signo (rdi = numero)
 print_uint:
     mov rax, rdi
-    mov rdi, char_buffer
     mov rbx, 10
     mov rcx, 0
 
@@ -752,15 +733,15 @@ print_uint:
     test rax, rax
     jnz .convert_loop
 
+    mov rdi, char_buffer
+
 .output_loop:
     pop rax
-    mov [char_buffer], al
-    mov rsi, char_buffer
-    mov rdx, 1
-    mov rax, SYS_write
-    mov rdi, STDOUT
-    push rcx
-    syscall
-    pop rcx
+    mov [rdi], al
+    inc rdi
     loop .output_loop
+
+    mov byte [rdi], 0
+    mov rdi, char_buffer
+    call print_string
     ret
