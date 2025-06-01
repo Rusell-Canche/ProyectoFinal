@@ -160,7 +160,7 @@ readFASTA:
     cmp al, ';'
     je .nextByte              ; omitir comentarios
     
-    ; Guardar caracter válido (A,C,G,T,N)
+    ; Guardar caracter válido (A,C,G,T)
     cmp al, 'A'
     jb .nextByte
     cmp al, 'z'
