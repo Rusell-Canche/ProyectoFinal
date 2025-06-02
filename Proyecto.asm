@@ -49,51 +49,51 @@ successMsg db "Palabras guardadas en palabras.txt", LF, NULL
 crlf db 13, 10, 0
 
 section .bss
-readBuffer resb BUFF_SIZE
-
-adnChunk resb MAX_ADN_CHUNK + 16     ; chunk con margen
-overlapSize resq 1
-
-fileDesc resq 1
-outFileDesc resq 1
-kVal resb 1
-adnLength resq 1
-kmerList resb MAX_ADN_SIZE
-kmerCounts resq MAX_ADN_SIZE
-tempKmer resb 16
-contador resq 1
-totalKmers resq 1
+readBuffer resb BUFF_SIZE         ; Buffer para leer del archivo
+adnChunk resb MAX_ADN_CHUNK + 16  ; Buffer para almacenar la secuencia de ADN leída
+overlapSize resq 1                ; No usado, reservado para posibles solapamientos
+fileDesc resq 1                   ; Descriptor de archivo de entrada
+outFileDesc resq 1                ; Descriptor de archivo de salida
+kVal resb 1                       ; Valor de k (longitud de las palabras)
+adnLength resq 1                  ; Longitud de la secuencia de ADN leída
+kmerList resb MAX_ADN_SIZE        ; Lista de k-mers extraídos
+kmerCounts resq MAX_ADN_SIZE      ; No usado, reservado para contar repeticiones
+tempKmer resb 16                  ; Buffer temporal para comparar k-mers
+contador resq 1                   ; No usado, reservado para contar
+totalKmers resq 1                 ; Total de k-mers generados
 
 section .text
 global _start
 
+;-------------------------------------------
+; Punto de entrada principal del programa
 _start:
     mov rdi, header
-    call printStr
+    call printStr                ; Imprime el encabezado
 
-    call openInputFile
+    call openInputFile           ; Abre el archivo de entrada
+    cmp rax, 0
+    jl _exitError                ; Si hay error, termina
+
+    call getKValue               ; Solicita el valor de k al usuario
     cmp rax, 0
     jl _exitError
 
-    call getKValue
+    call readFastaFile           ; Lee el archivo FASTA y almacena la secuencia de ADN
     cmp rax, 0
     jl _exitError
 
-    ; Leer archivo FASTA
-    call readFastaFile
-    cmp rax, 0
-    jl _exitError
-
-    ; Cerrar archivo de entrada
+    ; Cierra el archivo de entrada
     mov rax, SYS_close
     mov rdi, [fileDesc]
     syscall
 
-    call generateWords
+    call generateWords           ; (Actualmente solo retorna éxito)
+
     cmp rax, 0
     jl _exitError
 
-    ; Crear archivo de salida (truncar si existe)
+    ; Crea el archivo de salida (trunca si existe)
     mov rax, SYS_creat
     mov rdi, outFileName
     mov rsi, S_IRUSR | S_IWUSR
@@ -102,34 +102,35 @@ _start:
     jl _exitError
     mov [outFileDesc], rax
 
-    call ordenarYGuardarKmers
-    call ordenarKmers
+    call ordenarYGuardarKmers    ; Extrae y guarda los k-mers en kmerList
+    call ordenarKmers            ; Ordena los k-mers alfabéticamente
 
     mov rdi, ordenadoMsg
-    call printStrToFile
+    call printStrToFile          ; Escribe mensaje de encabezado en el archivo de salida
 
-    call contar_frecuencias
+    call contar_frecuencias      ; Cuenta y escribe las frecuencias de cada k-mer
 
-    ; Cerrar archivo de salida
+    ; Cierra el archivo de salida
     mov rax, SYS_close
     mov rdi, [outFileDesc]
     syscall
 
     mov rdi, successMsg
-    call printStr
+    call printStr                ; Mensaje de éxito
 
     mov rax, SYS_exit
     mov rdi, EXIT_SUCCESS
     syscall
-;-------------------------------------------
 
+;-------------------------------------------
+; Termina el programa con error
 _exitError:
     mov rax, SYS_exit
     mov rdi, 1
     syscall
 
 ;-------------------------------------------
-; Función para imprimir cadenas por consola
+; Imprime una cadena por consola (rdi = puntero a la cadena)
 printStr:
     push rbx
     mov rbx, rdi
@@ -148,7 +149,7 @@ printStr:
     ret
 
 ;-------------------------------------------
-; Función para imprimir cadenas en archivo
+; Imprime una cadena en el archivo de salida (rdi = puntero a la cadena)
 printStrToFile:
     push rbx
     mov rbx, rdi
@@ -167,7 +168,7 @@ printStrToFile:
     ret
 
 ;-------------------------------------------
-; Leer archivo FASTA/FNA
+; Lee el archivo FASTA/FNA y almacena la secuencia de ADN en adnChunk
 readFastaFile:
     push rbx
     push rcx
@@ -175,10 +176,10 @@ readFastaFile:
     push rsi
     push rdi
 
-    xor rbx, rbx                ; índice en adnChunk
+    xor rbx, rbx                ; Índice en adnChunk
     
 .read_loop:
-    ; Leer chunk del archivo
+    ; Lee un chunk del archivo
     mov rax, SYS_read
     mov rdi, [fileDesc]
     mov rsi, readBuffer
@@ -188,8 +189,8 @@ readFastaFile:
     cmp rax, 0
     jle .done_reading           ; EOF o error
     
-    mov rcx, rax                ; bytes leídos
-    xor rsi, rsi                ; índice en readBuffer
+    mov rcx, rax                ; Bytes leídos
+    xor rsi, rsi                ; Índice en readBuffer
     
 .process_chunk:
     cmp rsi, rcx
@@ -197,11 +198,11 @@ readFastaFile:
     
     mov al, [readBuffer + rsi]
     
-    ; Saltar líneas de cabecera (que empiezan con >)
+    ; Salta líneas de cabecera (empiezan con '>')
     cmp al, '>'
     je .skip_header_line
     
-    ; Saltar caracteres de control
+    ; Salta caracteres de control (LF, CR, espacio, tab)
     cmp al, 10                  ; LF
     je .next_char
     cmp al, 13                  ; CR
@@ -211,7 +212,7 @@ readFastaFile:
     cmp al, 9                   ; tab
     je .next_char
     
-    ; Validar que sea nucleótido válido (A, T, G, C)
+    ; Valida que sea nucleótido válido (A, T, G, C, a, t, g, c)
     cmp al, 'A'
     je .valid_nucleotide
     cmp al, 'T'
@@ -228,22 +229,22 @@ readFastaFile:
     je .convert_to_upper
     cmp al, 'c'
     je .convert_to_upper
-    jmp .next_char              ; Saltar caracteres no válidos
+    jmp .next_char              ; Salta caracteres no válidos
     
 .convert_to_upper:
-    sub al, 32                  ; Convertir a mayúscula
+    sub al, 32                  ; Convierte a mayúscula
     
 .valid_nucleotide:
-    ; Verificar que no excedamos el buffer
+    ; Verifica que no se exceda el buffer
     cmp rbx, MAX_ADN_CHUNK - 1
     jge .done_reading
     
-    mov [adnChunk + rbx], al
+    mov [adnChunk + rbx], al    ; Guarda el nucleótido
     inc rbx
     jmp .next_char
     
 .skip_header_line:
-    ; Saltar hasta el final de la línea
+    ; Salta hasta el final de la línea de cabecera
 .skip_loop:
     inc rsi
     cmp rsi, rcx
@@ -257,9 +258,9 @@ readFastaFile:
     jmp .process_chunk
     
 .done_reading:
-    mov [adnLength], rbx        ; Guardar longitud total
+    mov [adnLength], rbx        ; Guarda la longitud total de la secuencia
     
-    ; Verificar que tengamos datos
+    ; Verifica que haya datos
     cmp rbx, 0
     je .error
     
@@ -280,19 +281,19 @@ readFastaFile:
     ret
 
 ;-------------------------------------------------------
-; Copiar k-mers en kmerList para ordenarlos
+; Extrae todos los k-mers posibles de la secuencia y los guarda en kmerList
 ordenarYGuardarKmers:
-    xor rsi, rsi                  ; índice dentro del chunk
-    xor rdi, rdi                  ; índice dentro de kmerList
-    movzx rcx, byte [kVal]       ; longitud del k-mer
-    mov rbx, [adnLength]         ; bytes válidos en adnChunk
+    xor rsi, rsi                  ; Índice dentro del chunk
+    xor rdi, rdi                  ; Índice dentro de kmerList
+    movzx rcx, byte [kVal]        ; Longitud del k-mer
+    mov rbx, [adnLength]          ; Bytes válidos en adnChunk
 
     cmp rbx, rcx
-    jb .fin
+    jb .fin                       ; Si la secuencia es menor que k, termina
 
-    sub rbx, rcx                 ; número de k-mers posibles
+    sub rbx, rcx                  ; Número de k-mers posibles
     inc rbx
-    mov [totalKmers], rbx        ; guardar total de k-mers
+    mov [totalKmers], rbx         ; Guarda el total de k-mers
 
 .copiar:
     cmp rbx, 0
@@ -317,7 +318,7 @@ ordenarYGuardarKmers:
     ret
 
 ;-------------------------------------------------------
-; Ordenar k-mers usando bubble sort
+; Ordena los k-mers en kmerList usando bubble sort
 ordenarKmers:
     push rbx
     push rdi
@@ -330,7 +331,7 @@ ordenarKmers:
     push r11
     push r12
 
-    movzx r8, byte [kVal]      ; tamaño de k-mer
+    movzx r8, byte [kVal]      ; Tamaño de k-mer
     mov rbx, [totalKmers]
     cmp rbx, 1
     jle .fin
@@ -338,12 +339,12 @@ ordenarKmers:
 
 .outer:
     mov rcx, rbx
-    xor r12, r12               ; offset inicial
-    mov r11b, 0                ; flag de intercambio
+    xor r12, r12               ; Offset inicial
+    mov r11b, 0                ; Flag de intercambio
 
 .inner:
     mov rsi, r12
-    add rsi, r8                ; siguiente k-mer
+    add rsi, r8                ; Siguiente k-mer
     mov r9, 0
 
 .compare_loop:
@@ -370,8 +371,7 @@ ordenarKmers:
     jmp .swap_loop
 
 .swap_done:
-    ; Si hubo intercambio, marcarlo
-    mov r11b, 1
+    mov r11b, 1                ; Marca que hubo intercambio
 
 .no_swap:
 .next:
@@ -379,8 +379,7 @@ ordenarKmers:
     dec rcx
     jnz .inner
 
-    ; Si no hubo intercambios, está ordenado
-    cmp r11b, 0
+    cmp r11b, 0                ; Si no hubo intercambios, ya está ordenado
     je .fin
     dec rbx
     jnz .outer
@@ -399,17 +398,17 @@ ordenarKmers:
     ret
 
 ;-------------------------------------------------------
-; Contar frecuencias de k-mers ordenados
+; Cuenta las frecuencias de los k-mers ordenados y los escribe en el archivo
 contar_frecuencias:
     mov rbx, [totalKmers]
     cmp rbx, 0
     je .fin
 
-    xor rsi, rsi               ; índice actual en kmerList
-    movzx r8, byte [kVal]      ; longitud del k-mer
-    mov r9, 1                  ; contador de repeticiones del k-mer actual
+    xor rsi, rsi               ; Índice actual en kmerList
+    movzx r8, byte [kVal]      ; Longitud del k-mer
+    mov r9, 1                  ; Contador de repeticiones del k-mer actual
 
-    ; Copiar primer k-mer a tempKmer
+    ; Copia el primer k-mer a tempKmer
     call limpiar_tempKmer
     xor rcx, rcx
 .copy_first:
@@ -423,12 +422,12 @@ contar_frecuencias:
 .start_loop:
     add rsi, r8
     dec rbx
-    jz .write_last             ; solo había un elemento
+    jz .write_last             ; Solo había un elemento
 
 .loop:
-    ; Comparar tempKmer con kmer actual
+    ; Compara tempKmer con el k-mer actual
     xor rcx, rcx
-    mov r10, 1                 ; flag = iguales
+    mov r10, 1                 ; Flag = iguales
 
 .compare_loop:
     cmp rcx, r8
@@ -447,10 +446,10 @@ contar_frecuencias:
     cmp r10, 1
     je .same_kmer
 
-    ; Son diferentes: escribir anterior y copiar nuevo
+    ; Son diferentes: escribe el anterior y copia el nuevo
     call escribir_kmer_freq
 
-    ; Copiar nuevo a tempKmer
+    ; Copia el nuevo a tempKmer
     call limpiar_tempKmer
     xor rcx, rcx
 .copy_new:
@@ -480,7 +479,7 @@ contar_frecuencias:
     ret
 
 ;-------------------------------------------------------
-; Escribir k-mer y su frecuencia en archivo
+; Escribe el k-mer y su frecuencia en el archivo de salida
 escribir_kmer_freq:
     push rax
     push rbx
@@ -491,25 +490,25 @@ escribir_kmer_freq:
     
     movzx r8, byte [kVal]
 
-    ; Escribir el k-mer
+    ; Escribe el k-mer
     mov rax, SYS_write
     mov rdi, [outFileDesc]
     mov rsi, tempKmer
     mov rdx, r8
     syscall
 
-    ; Escribir el separador
+    ; Escribe el separador ": "
     mov rax, SYS_write
     mov rdi, [outFileDesc]
     mov rsi, separator
     mov rdx, 2
     syscall
 
-    ; Escribir la frecuencia
+    ; Escribe la frecuencia (número)
     mov rax, r9
     call print_decimal_to_file
 
-    ; Escribir salto de línea
+    ; Escribe salto de línea
     mov rax, SYS_write
     mov rdi, [outFileDesc]
     mov rsi, crlf
@@ -525,16 +524,16 @@ escribir_kmer_freq:
     ret
 
 ;-------------------------------------------------------
-; Convertir número en rax a decimal y escribir en archivo
+; Convierte el número en rax a decimal y lo escribe en el archivo de salida
 print_decimal_to_file:
     push rbx
     push rcx
     push rdx
     push rsi
 
-    mov rdx, rax                ; Guardamos el número original
+    mov rdx, rax                ; Guarda el número original
 
-    ; Limpiar 20 bytes del final del buffer
+    ; Limpia 20 bytes del final del buffer
     mov rcx, 20
     mov rax, BUFF_SIZE
     sub rax, rcx
@@ -545,7 +544,7 @@ print_decimal_to_file:
     inc rsi
     loop .clear_loop
 
-    ; Empezamos desde el final del buffer
+    ; Empieza desde el final del buffer
     lea rbx, [readBuffer + BUFF_SIZE]
     mov rcx, 10
     cmp rdx, 0
@@ -582,7 +581,7 @@ print_decimal_to_file:
     ret
 
 ;-------------------------------------------
-; Abrir archivo de entrada
+; Abre el archivo de entrada y guarda el descriptor en fileDesc
 openInputFile:
     mov rax, SYS_open
     mov rdi, fileName
@@ -600,7 +599,7 @@ openInputFile:
     ret
 
 ;-------------------------------------------
-; Solicitar valor de k
+; Solicita el valor de k al usuario y lo valida
 getKValue:
     mov rdi, promptK
     call printStr
@@ -608,23 +607,23 @@ getKValue:
     mov rax, SYS_read
     mov rdi, STDIN
     mov rsi, readBuffer
-    mov rdx, 4          ; leer hasta 4 caracteres incluyendo '\n'
+    mov rdx, 4          ; Lee hasta 4 caracteres incluyendo '\n'
     syscall
 
-    xor rcx, rcx        ; índice
-    xor rbx, rbx        ; acumulador para el número
+    xor rcx, rcx        ; Índice
+    xor rbx, rbx        ; Acumulador para el número
 
 .parse_loop:
     mov al, [readBuffer + rcx]
-    cmp al, 10          ; si es salto de línea (\n)
+    cmp al, 10          ; Si es salto de línea (\n)
     je .done_parse
-    cmp al, 13          ; si es retorno de carro (por si acaso)
+    cmp al, 13          ; Si es retorno de carro
     je .done_parse
     cmp al, 0
     je .done_parse
     sub al, '0'
     cmp al, 9
-    ja .error           ; si no es dígito
+    ja .error           ; Si no es dígito
 
     imul rbx, rbx, 10
     add rbx, rax
@@ -649,15 +648,13 @@ getKValue:
     ret
 
 ;-------------------------------------------
-; Generar k-mers (ahora implementada correctamente)
+; Función dummy: solo retorna éxito (el procesamiento real está en ordenarYGuardarKmers)
 generateWords:
-    ; Esta función ahora solo retorna éxito ya que el procesamiento
-    ; real se hace en ordenarYGuardarKmers
     xor rax, rax
     ret
 
 ;-------------------------------------------------------
-; Limpiar el buffer tempKmer antes de cada uso
+; Limpia el buffer tempKmer antes de cada uso
 limpiar_tempKmer:
     push rax
     push rcx
