@@ -7,692 +7,661 @@
      7                                 
      8                                 
      9                                 [section .data]
-    10                                 LF equ 10
-    11                                 NULL equ 0
-    12                                 EXIT_SUCCESS equ 0
-    13                                 STDIN equ 0
-    14                                 STDOUT equ 1
-    15                                 STDERR equ 2
-    16                                 SYS_read equ 0
-    17                                 SYS_write equ 1
-    18                                 SYS_open equ 2
-    19                                 SYS_close equ 3
-    20                                 SYS_exit equ 60
-    21                                 SYS_creat equ 85
-    22                                 O_RDONLY equ 000000
-    23                                 O_WRONLY equ 000001
-    24                                 O_CREAT equ 0x40
-    25                                 O_TRUNC equ 0x200
-    26                                 O_APPEND equ 0x400
-    27                                 
+    10                                 
+    11                                 LF equ 10
+    12                                 NULL equ 0
+    13                                 EXIT_SUCCESS equ 0
+    14                                 STDIN equ 0
+    15                                 STDOUT equ 1
+    16                                 STDERR equ 2
+    17                                 SYS_read equ 0
+    18                                 SYS_write equ 1
+    19                                 SYS_open equ 2
+    20                                 SYS_close equ 3
+    21                                 SYS_exit equ 60
+    22                                 SYS_creat equ 85
+    23                                 O_RDONLY equ 000000
+    24                                 O_WRONLY equ 000001
+    25                                 O_CREAT equ 0x40
+    26                                 O_TRUNC equ 0x200
+    27                                 O_APPEND equ 0x400
     28                                 S_IRUSR equ 00400
     29                                 S_IWUSR equ 00200
     30                                 BUFF_SIZE equ 65536
-    31                                 
-    32                                 MAX_ADN_CHUNK equ 524288
-    33                                 MAX_ADN_SIZE equ 524288
-    34                                 
-    35 00000000 3A2000                 separator db ": ", 0
-    36                                 
-    37 00000003 416E616C697A61646F-    header db "Analizador de palabras de ADN", LF, LF, NULL
-    38 00000003 722064652070616C61-
-    39 00000003 627261732064652041-
-    40 00000003 444E0A0A00         
-    41 00000023 5072756562612E7478-    fileName db "Prueba.txt", NULL
-    42 00000023 7400               
-    43 0000002E 70616C61627261732E-    outFileName db "palabras.txt", NULL
-    44 0000002E 74787400           
-    45 0000003B 496E6772657365206C-    promptK db "Ingrese longitud de palabra (4-10): ", NULL
-    46 0000003B 6F6E67697475642064-
-    47 0000003B 652070616C61627261-
-    48 0000003B 2028342D3130293A20-
-    49 0000003B 00                 
-    50 00000060 2000                   espacio db " ", 0
-    51 00000062 50616C616272617320-    ordenadoMsg db "Palabras Ordenadas con Repeticiones:", 13, 10, 0
-    52 00000062 4F7264656E61646173-
-    53 00000062 20636F6E2052657065-
-    54 00000062 746963696F6E65733A-
-    55 00000062 0D0A00             
-    56 00000089 52657065746963696F-    repeticionesMsg db "Repeticiones:", 13, 10, 0
-    57 00000089 6E65733A0D0A00     
-    58                                 
-    59 00000099 4572726F7220616272-    errMsgOpen db "Error abriendo archivo.", LF, NULL
-    60 00000099 69656E646F20617263-
-    61 00000099 6869766F2E0A00     
-    62 000000B2 4572726F72206C6579-    errMsgRead db "Error leyendo archivo.", LF, NULL
-    63 000000B2 656E646F2061726368-
-    64 000000B2 69766F2E0A00       
-    65 000000CA 4572726F7220657363-    errMsgWrite db "Error escribiendo archivo.", LF, NULL
-    66 000000CA 72696269656E646F20-
-    67 000000CA 6172636869766F2E0A-
-    68 000000CA 00                 
-    69 000000E6 4572726F723A206B20-    errMsgK db "Error: k debe ser entre 4 y 10.", LF, NULL
-    70 000000E6 646562652073657220-
-    71 000000E6 656E74726520342079-
-    72 000000E6 2031302E0A00       
-    73 00000107 50616C616272617320-    successMsg db "Palabras guardadas en palabras.txt", LF, NULL
-    74 00000107 677561726461646173-
-    75 00000107 20656E2070616C6162-
-    76 00000107 7261732E7478740A00 
-    77 0000012B 0D0A00                 crlf db 13, 10, 0
-    78                                 
-    79                                 [section .bss]
-    80 00000000 <gap>                  readBuffer resb BUFF_SIZE
-    81 00010000 <gap>                  adnChunk resb MAX_ADN_CHUNK + 16
-    82 00090010 <gap>                  overlapSize resq 1
-    83 00090018 <gap>                  fileDesc resq 1
-    84 00090020 <gap>                  outFileDesc resq 1
-    85 00090028 <gap>                  kVal resb 1
-    86 00090029 <gap>                  adnLength resq 1
-    87 00090031 <gap>                  kmerList resb MAX_ADN_SIZE
-    88 00110031 <gap>                  kmerCounts resq MAX_ADN_SIZE
-    89 00510031 <gap>                  tempKmer resb 16
-    90 00510041 <gap>                  contador resq 1
-    91 00510049 <gap>                  totalKmers resq 1
-    92                                 
-    93                                 [section .text]
-    94                                 [global _start]
-    95                                 
-    96                                 
+    31                                 MAX_ADN_SIZE equ 8000000
+    32 00000000 3A2000                 separator db ": ", 0
+    33 00000003 416E616C697A61646F-    header db "Analizador de palabras de ADN", LF, LF, NULL
+    34 00000003 722064652070616C61-
+    35 00000003 627261732064652041-
+    36 00000003 444E0A0A00         
+    37 00000023 5072756562612E7478-    fileName db "Prueba.txt", NULL
+    38 00000023 7400               
+    39 0000002E 70616C61627261732E-    outFileName db "palabras.txt", NULL
+    40 0000002E 74787400           
+    41 0000003B 496E6772657365206C-    promptK db "Ingrese longitud de palabra (4-10): ", NULL
+    42 0000003B 6F6E67697475642064-
+    43 0000003B 652070616C61627261-
+    44 0000003B 2028342D3130293A20-
+    45 0000003B 00                 
+    46 00000060 2000                   espacio db " ", 0
+    47 00000062 50616C616272617320-    ordenadoMsg db "Palabras Ordenadas con Repeticiones:", 13, 10, 0
+    48 00000062 4F7264656E61646173-
+    49 00000062 20636F6E2052657065-
+    50 00000062 746963696F6E65733A-
+    51 00000062 0D0A00             
+    52 00000089 4572726F7220616272-    errMsgOpen db "Error abriendo archivo.", LF, NULL
+    53 00000089 69656E646F20617263-
+    54 00000089 6869766F2E0A00     
+    55 000000A2 4572726F72206C6579-    errMsgRead db "Error leyendo archivo.", LF, NULL
+    56 000000A2 656E646F2061726368-
+    57 000000A2 69766F2E0A00       
+    58 000000BA 4572726F7220657363-    errMsgWrite db "Error escribiendo archivo.", LF, NULL
+    59 000000BA 72696269656E646F20-
+    60 000000BA 6172636869766F2E0A-
+    61 000000BA 00                 
+    62 000000D6 4572726F723A206B20-    errMsgK db "Error: k debe ser entre 4 y 10.", LF, NULL
+    63 000000D6 646562652073657220-
+    64 000000D6 656E74726520342079-
+    65 000000D6 2031302E0A00       
+    66 000000F7 50616C616272617320-    successMsg db "Palabras guardadas en palabras.txt", LF, NULL
+    67 000000F7 677561726461646173-
+    68 000000F7 20656E2070616C6162-
+    69 000000F7 7261732E7478740A00 
+    70 0000011B 0D0A00                 crlf db 13, 10, 0
+    71                                 
+    72                                 [section .bss]
+    73                                 
+    74 00000000 <gap>                  readBuffer resb BUFF_SIZE
+    75 00010000 <gap>                  adnBuffer resb MAX_ADN_SIZE
+    76 007B1200 <gap>                  fileDesc resq 1
+    77 007B1208 <gap>                  outFileDesc resq 1
+    78 007B1210 <gap>                  kVal resb 1
+    79 007B1211 <gap>                  adnLength resq 1
+    80 007B1219 <gap>                  kmerList resb MAX_ADN_SIZE
+    81 00F52419 <gap>                  kmerCounts resq MAX_ADN_SIZE
+    82 04C5B419 <gap>                  tempKmer resb 16
+    83 04C5B429 <gap>                  contador resq 1
+    84 04C5B431 <gap>                  totalKmers resq 1
+    85                                 
+    86                                 
+    87                                 [section .text]
+    88                                 [global _start]
+    89                                 
+    90                                 _start:
+    91 00000000 48C7C7[00000000]        mov rdi, header
+    92 00000007 E8BD000000              call printStr
+    93                                 
+    94 0000000C E8B7030000              call openInputFile
+    95 00000011 4883F800                cmp rax, 0
+    96 00000015 0F8C9D000000            jl _exitError
     97                                 
-    98                                 _start:
-    99 00000000 48C7C7[00000000]        mov rdi, header
-   100 00000007 E8C1000000              call printStr
+    98 0000001B E8E5030000              call readFASTA
+    99 00000020 4883F800                cmp rax, 0
+   100 00000024 0F8C8E000000            jl _exitError
    101                                 
-   102 0000000C E8A0040000              call openInputFile
-   103 00000011 4883F800                cmp rax, 0
-   104 00000015 0F8CA1000000            jl _exitError
+   102 0000002A 48C7C003000000          mov rax, SYS_close
+   103 00000031 488B3C25[00000000]      mov rdi, [fileDesc]
+   104 00000039 0F05                    syscall
    105                                 
-   106 0000001B E8CE040000              call getKValue
-   107 00000020 4883F800                cmp rax, 0
-   108 00000024 0F8C92000000            jl _exitError
+   106 0000003B E867040000              call getKValue
+   107 00000040 4883F800                cmp rax, 0
+   108 00000044 7C76                    jl _exitError
    109                                 
-   110 0000002A E8ED000000              call readFastaFile
-   111 0000002F 4883F800                cmp rax, 0
-   112 00000033 0F8C83000000            jl _exitError
+   110 00000046 E8FB040000              call generateWords
+   111 0000004B 4883F800                cmp rax, 0
+   112 0000004F 7C6B                    jl _exitError
    113                                 
    114                                 
-   115 00000039 48C7C003000000          mov rax, SYS_close
-   116 00000040 488B3C25[00000000]      mov rdi, [fileDesc]
-   117 00000048 0F05                    syscall
-   118                                 
-   119 0000004A E822050000              call generateWords
-   120                                 
-   121 0000004F 4883F800                cmp rax, 0
-   122 00000053 7C6B                    jl _exitError
-   123                                 
-   124                                 
-   125 00000055 48C7C055000000          mov rax, SYS_creat
-   126 0000005C 48C7C7[00000000]        mov rdi, outFileName
-   127 00000063 48C7C680010000          mov rsi, S_IRUSR | S_IWUSR
-   128 0000006A 0F05                    syscall
-   129 0000006C 4883F800                cmp rax, 0
-   130 00000070 7C4E                    jl _exitError
-   131 00000072 48890425[00000000]      mov [outFileDesc], rax
-   132                                 
-   133 0000007A E86E010000              call ordenarYGuardarKmers
-   134 0000007F E8C4010000              call ordenarKmers
-   135                                 
-   136 00000084 48C7C7[00000000]        mov rdi, ordenadoMsg
-   137 0000008B E864000000              call printStrToFile
-   138                                 
-   139 00000090 E865020000              call contar_frecuencias
-   140                                 
+   115 00000051 48C7C055000000          mov rax, SYS_creat
+   116 00000058 48C7C7[00000000]        mov rdi, outFileName
+   117 0000005F 48C7C680010000          mov rsi, S_IRUSR | S_IWUSR
+   118 00000066 0F05                    syscall
+   119 00000068 4883F800                cmp rax, 0
+   120 0000006C 7C4E                    jl _exitError
+   121 0000006E 48890425[00000000]      mov [outFileDesc], rax
+   122                                 
+   123 00000076 E89D000000              call ordenarYGuardarKmers
+   124 0000007B E8F3000000              call ordenarKmers
+   125                                 
+   126 00000080 48C7C7[00000000]        mov rdi, ordenadoMsg
+   127 00000087 E864000000              call printStrToFile
+   128                                 
+   129 0000008C E880010000              call contar_frecuencias
+   130                                 
+   131 00000091 48C7C003000000          mov rax, SYS_close
+   132 00000098 488B3C25[00000000]      mov rdi, [outFileDesc]
+   133 000000A0 0F05                    syscall
+   134                                 
+   135 000000A2 48C7C7[00000000]        mov rdi, successMsg
+   136 000000A9 E81B000000              call printStr
+   137                                 
+   138 000000AE 48C7C03C000000          mov rax, SYS_exit
+   139 000000B5 48C7C700000000          mov rdi, EXIT_SUCCESS
+   140 000000BC 0F05                    syscall
    141                                 
-   142 00000095 48C7C003000000          mov rax, SYS_close
-   143 0000009C 488B3C25[00000000]      mov rdi, [outFileDesc]
-   144 000000A4 0F05                    syscall
-   145                                 
-   146 000000A6 48C7C7[00000000]        mov rdi, successMsg
-   147 000000AD E81B000000              call printStr
-   148                                 
-   149 000000B2 48C7C03C000000          mov rax, SYS_exit
-   150 000000B9 48C7C700000000          mov rdi, EXIT_SUCCESS
-   151 000000C0 0F05                    syscall
-   152                                 
+   142                                 _exitError:
+   143 000000BE 48C7C03C000000          mov rax, SYS_exit
+   144 000000C5 48C7C701000000          mov rdi, 1
+   145 000000CC 0F05                    syscall
+   146                                 
+   147                                 
+   148                                 printStr:
+   149 000000CE 53                      push rbx
+   150                                 
+   151 000000CF 4889FB                  mov rbx, rdi
+   152 000000D2 4831D2                  xor rdx, rdx
    153                                 
-   154                                 
-   155                                 _exitError:
-   156 000000C2 48C7C03C000000          mov rax, SYS_exit
-   157 000000C9 48C7C701000000          mov rdi, 1
-   158 000000D0 0F05                    syscall
+   154                                 .cont:
+   155 000000D5 803C1300                cmp byte [rbx + rdx], 0
+   156 000000D9 7403                    je .done
+   157 000000DB 48FFC2                  inc rdx
+   158 000000DE EBF3                    jmp .cont
    159                                 
-   160                                 
-   161                                 
-   162                                 printStr:
-   163 000000D2 53                      push rbx
-   164 000000D3 4889FB                  mov rbx, rdi
-   165 000000D6 4831D2                  xor rdx, rdx
-   166                                 .cont:
-   167 000000D9 803C1300                cmp byte [rbx + rdx], 0
-   168 000000DD 7403                    je .done
-   169 000000DF 48FFC2                  inc rdx
-   170 000000E2 EBF3                    jmp .cont
-   171                                 .done:
-   172 000000E4 48C7C001000000          mov rax, SYS_write
-   173 000000EB 48C7C701000000          mov rdi, STDOUT
-   174 000000F2 4889DE                  mov rsi, rbx
-   175 000000F5 0F05                    syscall
-   176 000000F7 5B                      pop rbx
-   177 000000F8 C3                      ret
-   178                                 
-   179                                 
-   180                                 
-   181                                 printStrToFile:
-   182 000000F9 53                      push rbx
-   183 000000FA 4889FB                  mov rbx, rdi
-   184 000000FD 4831D2                  xor rdx, rdx
-   185                                 .lenloop:
-   186 00000100 803C1300                cmp byte [rbx + rdx], 0
-   187 00000104 7403                    je .write
-   188 00000106 48FFC2                  inc rdx
-   189 00000109 EBF3                    jmp .lenloop
-   190                                 .write:
-   191 0000010B 48C7C001000000          mov rax, SYS_write
-   192 00000112 488B3C25[00000000]      mov rdi, [outFileDesc]
-   193 0000011A 4889DE                  mov rsi, rbx
-   194 0000011D 0F05                    syscall
-   195 0000011F 5B                      pop rbx
-   196 00000120 C3                      ret
-   197                                 
-   198                                 
+   160                                 .done:
+   161 000000E0 48C7C001000000          mov rax, SYS_write
+   162 000000E7 48C7C701000000          mov rdi, STDOUT
+   163 000000EE 4889DE                  mov rsi, rbx
+   164 000000F1 0F05                    syscall
+   165                                 
+   166 000000F3 5B                      pop rbx
+   167 000000F4 C3                      ret
+   168                                 
+   169                                 
+   170                                 printStrToFile:
+   171 000000F5 53                      push rbx
+   172                                 
+   173 000000F6 4889FB                  mov rbx, rdi
+   174 000000F9 4831D2                  xor rdx, rdx
+   175                                 
+   176                                 .lenloop:
+   177 000000FC 803C1300                cmp byte [rbx + rdx], 0
+   178 00000100 7403                    je .write
+   179 00000102 48FFC2                  inc rdx
+   180 00000105 EBF3                    jmp .lenloop
+   181                                 
+   182                                 .write:
+   183 00000107 48C7C001000000          mov rax, SYS_write
+   184 0000010E 488B3C25[00000000]      mov rdi, [outFileDesc]
+   185 00000116 4889DE                  mov rsi, rbx
+   186                                 
+   187 00000119 0F05                    syscall
+   188                                 
+   189 0000011B 5B                      pop rbx
+   190 0000011C C3                      ret
+   191                                 
+   192                                 
+   193                                 ordenarYGuardarKmers:
+   194 0000011D 4831F6                  xor rsi, rsi
+   195 00000120 4831FF                  xor rdi, rdi
+   196                                 
+   197 00000123 480FB60C25[00000000]      movzx rcx, byte [kVal]
+   198 0000012C 488B1C25[00000000]      mov rbx, [adnLength]
    199                                 
-   200                                 readFastaFile:
-   201 00000121 53                      push rbx
-   202 00000122 51                      push rcx
-   203 00000123 52                      push rdx
-   204 00000124 56                      push rsi
-   205 00000125 57                      push rdi
+   200 00000134 4839CB                  cmp rbx, rcx
+   201 00000137 723C                    jb .fin
+   202                                 
+   203 00000139 4829CB                  sub rbx, rcx
+   204 0000013C 48FFC3                  inc rbx
+   205 0000013F 48891C25[00000000]      mov [totalKmers], rbx
    206                                 
-   207 00000126 4831DB                  xor rbx, rbx
-   208                                 
-   209                                 .read_loop:
+   207                                 .copiar:
+   208 00000147 4883FB00                cmp rbx, 0
+   209 0000014B 7428                    je .fin
    210                                 
-   211 00000129 48C7C000000000          mov rax, SYS_read
-   212 00000130 488B3C25[00000000]      mov rdi, [fileDesc]
-   213 00000138 48C7C6[00000000]        mov rsi, readBuffer
-   214 0000013F 48C7C200000100          mov rdx, BUFF_SIZE
-   215 00000146 0F05                    syscall
+   211 0000014D 48C7C200000000          mov rdx, 0
+   212                                 
+   213                                 .loop_kmer:
+   214 00000154 4839CA                  cmp rdx, rcx
+   215 00000157 7411                    je .next
    216                                 
-   217 00000148 4883F800                cmp rax, 0
-   218 0000014C 7E76                    jle .done_reading
-   219                                 
-   220 0000014E 4889C1                  mov rcx, rax
-   221 00000151 4831F6                  xor rsi, rsi
-   222                                 
-   223                                 .process_chunk:
-   224 00000154 4839CE                  cmp rsi, rcx
-   225 00000157 7DCE                    jge .read_loop
-   226                                 
-   227 00000159 8A86[00000000]          mov al, [readBuffer + rsi]
-   228                                 
-   229                                 
-   230 0000015F 3C3E                    cmp al, '>'
-   231 00000161 7446                    je .skip_header_line
-   232                                 
-   233                                 
-   234 00000163 3C0A                    cmp al, 10
-   235 00000165 7458                    je .next_char
-   236 00000167 3C0D                    cmp al, 13
-   237 00000169 7454                    je .next_char
-   238 0000016B 3C20                    cmp al, 32
-   239 0000016D 7450                    je .next_char
-   240 0000016F 3C09                    cmp al, 9
-   241 00000171 744C                    je .next_char
-   242                                 
-   243                                 
-   244 00000173 3C41                    cmp al, 'A'
-   245 00000175 741E                    je .valid_nucleotide
-   246 00000177 3C54                    cmp al, 'T'
-   247 00000179 741A                    je .valid_nucleotide
-   248 0000017B 3C47                    cmp al, 'G'
-   249 0000017D 7416                    je .valid_nucleotide
-   250 0000017F 3C43                    cmp al, 'C'
-   251 00000181 7412                    je .valid_nucleotide
-   252 00000183 3C61                    cmp al, 'a'
-   253 00000185 740C                    je .convert_to_upper
-   254 00000187 3C74                    cmp al, 't'
-   255 00000189 7408                    je .convert_to_upper
-   256 0000018B 3C67                    cmp al, 'g'
-   257 0000018D 7404                    je .convert_to_upper
-   258 0000018F 3C63                    cmp al, 'c'
-   259 00000191 7400                    je .convert_to_upper
-   260 00000193 EB2A                    jmp .next_char
+   217 00000159 8A8416[00000000]        mov al, [adnBuffer + rsi + rdx]
+   218 00000160 888417[00000000]        mov [kmerList + rdi + rdx], al
+   219 00000167 48FFC2                  inc rdx
+   220 0000016A EBE6                    jmp .loop_kmer
+   221                                 
+   222                                 .next:
+   223 0000016C 48FFC6                  inc rsi
+   224 0000016F 4801CF                  add rdi, rcx
+   225 00000172 48FFCB                  dec rbx
+   226 00000175 EBCE                    jmp .copiar
+   227                                 
+   228                                 .fin:
+   229 00000177 C3                      ret
+   230                                 
+   231                                 
+   232                                 ordenarKmers:
+   233 00000178 53                      push rbx
+   234 00000179 57                      push rdi
+   235 0000017A 56                      push rsi
+   236 0000017B 51                      push rcx
+   237 0000017C 52                      push rdx
+   238 0000017D 4150                    push r8
+   239 0000017F 4151                    push r9
+   240 00000181 4154                    push r12
+   241                                 
+   242 00000183 4C0FB60425[00000000]      movzx r8, byte [kVal]
+   243 0000018C 488B1C25[00000000]      mov rbx, [totalKmers]
+   244                                 
+   245 00000194 4883FB01                cmp rbx, 1
+   246 00000198 7E6E                    jle .fin
+   247 0000019A 48FFCB                  dec rbx
+   248                                 
+   249                                 .outer:
+   250 0000019D 4889D9                  mov rcx, rbx
+   251 000001A0 4D31E4                  xor r12, r12
+   252                                 
+   253                                 .inner:
+   254 000001A3 4C89E6                  mov rsi, r12
+   255 000001A6 4C01C6                  add rsi, r8
+   256 000001A9 49C7C100000000          mov r9, 0
+   257                                 
+   258                                 .compare_loop:
+   259 000001B0 4D39C1                  cmp r9, r8
+   260 000001B3 7446                    je .no_swap
    261                                 
-   262                                 .convert_to_upper:
-   263 00000195 2C20                    sub al, 32
-   264                                 
-   265                                 .valid_nucleotide:
-   266                                 
-   267 00000197 4881FBFFFF0700          cmp rbx, MAX_ADN_CHUNK - 1
-   268 0000019E 7D24                    jge .done_reading
+   262 000001B5 438A840C[00000000]      mov al, [kmerList + r12 + r9]
+   263 000001BD 428A940E[00000000]      mov dl, [kmerList + rsi + r9]
+   264 000001C5 38D0                    cmp al, dl
+   265 000001C7 7232                    jb .no_swap
+   266 000001C9 7703                    ja .do_swap
+   267 000001CB 49FFC1                  inc r9
+   268 000001CE EBDE                    jmp .compare_loop
    269                                 
-   270 000001A0 8883[00000000]          mov [adnChunk + rbx], al
-   271 000001A6 48FFC3                  inc rbx
-   272 000001A9 EB14                    jmp .next_char
-   273                                 
-   274                                 .skip_header_line:
-   275                                 
-   276                                 .skip_loop:
-   277 000001AB 48FFC6                  inc rsi
-   278 000001AE 4839CE                  cmp rsi, rcx
-   279 000001B1 0F8D6CFFFFFF            jge .read_loop
-   280 000001B7 8A86[00000000]          mov al, [readBuffer + rsi]
-   281 000001BD 3C0A                    cmp al, 10
-   282 000001BF 75E8                    jne .skip_loop
-   283                                 
-   284                                 .next_char:
-   285 000001C1 48FFC6                  inc rsi
-   286 000001C4 EB8C                    jmp .process_chunk
-   287                                 
-   288                                 .done_reading:
-   289 000001C6 48891C25[00000000]      mov [adnLength], rbx
+   270                                 .do_swap:
+   271 000001D0 4D31C9                  xor r9, r9
+   272                                 
+   273                                 .swap_loop:
+   274 000001D3 4D39C1                  cmp r9, r8
+   275 000001D6 7423                    je .next
+   276 000001D8 438A840C[00000000]      mov al, [kmerList + r12 + r9]
+   277 000001E0 428A940E[00000000]      mov dl, [kmerList + rsi + r9]
+   278 000001E8 4388940C[00000000]      mov [kmerList + r12 + r9], dl
+   279 000001F0 4288840E[00000000]      mov [kmerList + rsi + r9], al
+   280 000001F8 49FFC1                  inc r9
+   281 000001FB EBD4                    jmp .swap_loop
+   282                                 
+   283                                 .no_swap:
+   284                                 .next:
+   285 000001FD 4D01C4                  add r12, r8
+   286 00000200 48FFC9                  dec rcx
+   287 00000203 759C                    jnz .inner
+   288 00000205 48FFCB                  dec rbx
+   289 00000208 7591                    jnz .outer
    290                                 
-   291                                 
-   292 000001CE 4883FB00                cmp rbx, 0
-   293 000001D2 7403                    je .error
-   294                                 
-   295 000001D4 4831C0                  xor rax, rax
-   296 000001D7 EB11                    jmp .exit
-   297                                 
-   298                                 .error:
-   299 000001D9 48C7C7[00000000]        mov rdi, errMsgRead
-   300 000001E0 E8E8FEFFFF              call printStr
-   301 000001E5 48C7C0FFFFFFFF          mov rax, -1
+   291                                 .fin:
+   292                                 
+   293 0000020A 415C                    pop r12
+   294 0000020C 4159                    pop r9
+   295 0000020E 4158                    pop r8
+   296 00000210 5A                      pop rdx
+   297 00000211 59                      pop rcx
+   298 00000212 5E                      pop rsi
+   299 00000213 5F                      pop rdi
+   300 00000214 5B                      pop rbx
+   301 00000215 C3                      ret
    302                                 
-   303                                 .exit:
-   304 000001EC 5F                      pop rdi
-   305 000001ED 5E                      pop rsi
-   306 000001EE 5A                      pop rdx
-   307 000001EF 59                      pop rcx
-   308 000001F0 5B                      pop rbx
-   309 000001F1 C3                      ret
-   310                                 
-   311                                 
+   303                                 
+   304                                 contar_frecuencias:
+   305 00000216 488B1C25[00000000]      mov rbx, [totalKmers]
+   306 0000021E 4883FB00                cmp rbx, 0
+   307 00000222 0F84A3000000            je .fin
+   308                                 
+   309 00000228 4831F6                  xor rsi, rsi
+   310 0000022B 4C0FB60425[00000000]      movzx r8, byte [kVal]
+   311 00000234 49C7C101000000          mov r9, 1
    312                                 
-   313                                 ordenarYGuardarKmers:
-   314 000001F2 4831F6                  xor rsi, rsi
-   315 000001F5 4831FF                  xor rdi, rdi
-   316 000001F8 480FB60C25[00000000]      movzx rcx, byte [kVal]
-   317 00000201 488B1C25[00000000]      mov rbx, [adnLength]
-   318                                 
-   319 00000209 4839CB                  cmp rbx, rcx
-   320 0000020C 723C                    jb .fin
-   321                                 
-   322 0000020E 4829CB                  sub rbx, rcx
-   323 00000211 48FFC3                  inc rbx
-   324 00000214 48891C25[00000000]      mov [totalKmers], rbx
-   325                                 
-   326                                 .copiar:
-   327 0000021C 4883FB00                cmp rbx, 0
-   328 00000220 7428                    je .fin
-   329                                 
-   330 00000222 48C7C200000000          mov rdx, 0
-   331                                 .loop_kmer:
-   332 00000229 4839CA                  cmp rdx, rcx
-   333 0000022C 7411                    je .next
-   334 0000022E 8A8416[00000000]        mov al, [adnChunk + rsi + rdx]
-   335 00000235 888417[00000000]        mov [kmerList + rdi + rdx], al
-   336 0000023C 48FFC2                  inc rdx
-   337 0000023F EBE6                    jmp .loop_kmer
-   338                                 
-   339                                 .next:
-   340 00000241 48FFC6                  inc rsi
-   341 00000244 4801CF                  add rdi, rcx
-   342 00000247 48FFCB                  dec rbx
-   343 0000024A EBCE                    jmp .copiar
-   344                                 
-   345                                 .fin:
-   346 0000024C C3                      ret
-   347                                 
-   348                                 
-   349                                 
-   350                                 ordenarKmers:
-   351 0000024D 53                      push rbx
-   352 0000024E 57                      push rdi
-   353 0000024F 56                      push rsi
-   354 00000250 51                      push rcx
-   355 00000251 52                      push rdx
-   356 00000252 4150                    push r8
-   357 00000254 4151                    push r9
-   358 00000256 4152                    push r10
-   359 00000258 4153                    push r11
-   360 0000025A 4154                    push r12
-   361                                 
-   362 0000025C 4C0FB60425[00000000]      movzx r8, byte [kVal]
-   363 00000265 488B1C25[00000000]      mov rbx, [totalKmers]
-   364 0000026D 4883FB01                cmp rbx, 1
-   365 00000271 7E7A                    jle .fin
-   366 00000273 48FFCB                  dec rbx
-   367                                 
-   368                                 .outer:
-   369 00000276 4889D9                  mov rcx, rbx
-   370 00000279 4D31E4                  xor r12, r12
-   371 0000027C 41B300                  mov r11b, 0
-   372                                 
-   373                                 .inner:
-   374 0000027F 4C89E6                  mov rsi, r12
-   375 00000282 4C01C6                  add rsi, r8
-   376 00000285 49C7C100000000          mov r9, 0
-   377                                 
-   378                                 .compare_loop:
-   379 0000028C 4D39C1                  cmp r9, r8
-   380 0000028F 7449                    je .no_swap
-   381 00000291 438A840C[00000000]      mov al, [kmerList + r12 + r9]
-   382 00000299 428A940E[00000000]      mov dl, [kmerList + rsi + r9]
-   383 000002A1 38D0                    cmp al, dl
-   384 000002A3 7235                    jb .no_swap
-   385 000002A5 7703                    ja .do_swap
-   386 000002A7 49FFC1                  inc r9
-   387 000002AA EBDE                    jmp .compare_loop
-   388                                 
-   389                                 .do_swap:
-   390 000002AC 4D31C9                  xor r9, r9
-   391                                 .swap_loop:
-   392 000002AF 4D39C1                  cmp r9, r8
-   393 000002B2 7423                    je .swap_done
-   394 000002B4 438A840C[00000000]      mov al, [kmerList + r12 + r9]
-   395 000002BC 428A940E[00000000]      mov dl, [kmerList + rsi + r9]
-   396 000002C4 4388940C[00000000]      mov [kmerList + r12 + r9], dl
-   397 000002CC 4288840E[00000000]      mov [kmerList + rsi + r9], al
-   398 000002D4 49FFC1                  inc r9
-   399 000002D7 EBD4                    jmp .swap_loop
-   400                                 
-   401                                 .swap_done:
-   402 000002D9 41B301                  mov r11b, 1
+   313                                 
+   314 0000023B E80A030000              call limpiar_tempKmer
+   315 00000240 4831C9                  xor rcx, rcx
+   316                                 .copy_first:
+   317 00000243 4C39C1                  cmp rcx, r8
+   318 00000246 7410                    je .start_loop
+   319 00000248 8A840E[00000000]        mov al, [kmerList + rsi + rcx]
+   320 0000024F 8881[00000000]          mov [tempKmer + rcx], al
+   321 00000255 48FFC1                  inc rcx
+   322 00000258 EBE7                    jmp .copy_first
+   323                                 
+   324                                 .start_loop:
+   325 0000025A 4C01C6                  add rsi, r8
+   326 0000025D 48FFCB                  dec rbx
+   327 00000260 7468                    jz .write_last
+   328                                 
+   329                                 .loop:
+   330                                 
+   331 00000262 4831C9                  xor rcx, rcx
+   332 00000265 49C7C201000000          mov r10, 1
+   333                                 
+   334                                 .compare_loop:
+   335 0000026C 4C39C1                  cmp rcx, r8
+   336 0000026F 741B                    je .compare_done
+   337 00000271 8A81[00000000]          mov al, [tempKmer + rcx]
+   338 00000277 8A940E[00000000]        mov dl, [kmerList + rsi + rcx]
+   339 0000027E 38D0                    cmp al, dl
+   340 00000280 7503                    jne .different
+   341 00000282 48FFC1                  inc rcx
+   342 00000285 EBE3                    jmp .compare_loop
+   343                                 
+   344                                 .different:
+   345 00000287 49C7C200000000          mov r10, 0
+   346                                 
+   347                                 .compare_done:
+   348 0000028E 4983FA01                cmp r10, 1
+   349 00000292 742B                    je .same_kmer
+   350                                 
+   351                                 
+   352 00000294 E834000000              call escribir_kmer_freq
+   353                                 
+   354                                 
+   355 00000299 E8AC020000              call limpiar_tempKmer
+   356 0000029E 4831C9                  xor rcx, rcx
+   357                                 .copy_new:
+   358 000002A1 4C39C1                  cmp rcx, r8
+   359 000002A4 7410                    je .reset_counter
+   360 000002A6 8A840E[00000000]        mov al, [kmerList + rsi + rcx]
+   361 000002AD 8881[00000000]          mov [tempKmer + rcx], al
+   362 000002B3 48FFC1                  inc rcx
+   363 000002B6 EBE7                    jmp .copy_new
+   364                                 
+   365                                 .reset_counter:
+   366 000002B8 49C7C101000000          mov r9, 1
+   367 000002BF EB01                    jmp .continue
+   368                                 
+   369                                 .same_kmer:
+   370 000002C1 49FFC1                  inc r9
+   371                                 
+   372                                 .continue:
+   373 000002C4 4C01C6                  add rsi, r8
+   374 000002C7 48FFCB                  dec rbx
+   375 000002CA 7594                    jnz .loop
+   376                                 
+   377                                 .write_last:
+   378                                 
+   379 000002CC E8FCFFFFFF              call escribir_kmer_freq
+   380                                 
+   381                                 .fin:
+   382 000002D1 C3                      ret
+   383                                 
+   384                                 
+   385                                 
+   386                                 escribir_kmer_freq:
+   387 000002D2 50                      push rax
+   388 000002D3 53                      push rbx
+   389 000002D4 51                      push rcx
+   390 000002D5 52                      push rdx
+   391 000002D6 56                      push rsi
+   392 000002D7 57                      push rdi
+   393                                 
+   394 000002D8 4C0FB60425[00000000]      movzx r8, byte [kVal]
+   395                                 
+   396                                 
+   397 000002E1 48C7C001000000          mov rax, SYS_write
+   398 000002E8 488B3C25[00000000]      mov rdi, [outFileDesc]
+   399 000002F0 48C7C6[00000000]        mov rsi, tempKmer
+   400 000002F7 4C89C2                  mov rdx, r8
+   401 000002FA 0F05                    syscall
+   402                                 
    403                                 
-   404                                 .no_swap:
-   405                                 .next:
-   406 000002DC 4D01C4                  add r12, r8
-   407 000002DF 48FFC9                  dec rcx
-   408 000002E2 7599                    jnz .inner
+   404 000002FC 48C7C001000000          mov rax, SYS_write
+   405 00000303 488B3C25[00000000]      mov rdi, [outFileDesc]
+   406 0000030B 48C7C6[00000000]        mov rsi, separator
+   407 00000312 48C7C202000000          mov rdx, 2
+   408 00000319 0F05                    syscall
    409                                 
-   410 000002E4 4180FB00                cmp r11b, 0
-   411 000002E8 7403                    je .fin
-   412 000002EA 48FFCB                  dec rbx
-   413 000002ED 7585                    jnz .outer
+   410                                 
+   411 0000031B 4C89C8                  mov rax, r9
+   412 0000031E E821000000              call print_decimal_to_file
+   413                                 
    414                                 
-   415                                 .fin:
-   416 000002EF 415C                    pop r12
-   417 000002F1 415B                    pop r11
-   418 000002F3 415A                    pop r10
-   419 000002F5 4159                    pop r9
-   420 000002F7 4158                    pop r8
-   421 000002F9 5A                      pop rdx
-   422 000002FA 59                      pop rcx
-   423 000002FB 5E                      pop rsi
-   424 000002FC 5F                      pop rdi
-   425 000002FD 5B                      pop rbx
-   426 000002FE C3                      ret
-   427                                 
-   428                                 
+   415 00000323 48C7C001000000          mov rax, SYS_write
+   416 0000032A 488B3C25[00000000]      mov rdi, [outFileDesc]
+   417 00000332 48C7C6[00000000]        mov rsi, crlf
+   418 00000339 48C7C202000000          mov rdx, 2
+   419 00000340 0F05                    syscall
+   420                                 
+   421                                 
+   422 00000342 5F                      pop rdi
+   423 00000343 5E                      pop rsi
+   424 00000344 5A                      pop rdx
+   425 00000345 59                      pop rcx
+   426 00000346 5B                      pop rbx
+   427 00000347 58                      pop rax
+   428 00000348 C3                      ret
    429                                 
-   430                                 contar_frecuencias:
-   431 000002FF 488B1C25[00000000]      mov rbx, [totalKmers]
-   432 00000307 4883FB00                cmp rbx, 0
-   433 0000030B 0F84A3000000            je .fin
-   434                                 
-   435 00000311 4831F6                  xor rsi, rsi
-   436 00000314 4C0FB60425[00000000]      movzx r8, byte [kVal]
-   437 0000031D 49C7C101000000          mov r9, 1
+   430                                 
+   431                                 print_decimal_to_file:
+   432 00000349 53                      push rbx
+   433 0000034A 51                      push rcx
+   434 0000034B 52                      push rdx
+   435 0000034C 56                      push rsi
+   436                                 
+   437 0000034D 4889C2                  mov rdx, rax
    438                                 
    439                                 
-   440 00000324 E84C020000              call limpiar_tempKmer
-   441 00000329 4831C9                  xor rcx, rcx
-   442                                 .copy_first:
-   443 0000032C 4C39C1                  cmp rcx, r8
-   444 0000032F 7410                    je .start_loop
-   445 00000331 8A840E[00000000]        mov al, [kmerList + rsi + rcx]
-   446 00000338 8881[00000000]          mov [tempKmer + rcx], al
-   447 0000033E 48FFC1                  inc rcx
-   448 00000341 EBE7                    jmp .copy_first
+   440 00000350 48C7C114000000          mov rcx, 20
+   441 00000357 48C7C000000100          mov rax, BUFF_SIZE
+   442 0000035E 4829C8                  sub rax, rcx
+   443 00000361 488DB0[00000000]        lea rsi, [readBuffer + rax]
+   444                                 
+   445                                 .clear_loop:
+   446 00000368 C60600                  mov byte [rsi], 0
+   447 0000036B 48FFC6                  inc rsi
+   448 0000036E E2F6                    loop .clear_loop
    449                                 
-   450                                 .start_loop:
-   451 00000343 4C01C6                  add rsi, r8
-   452 00000346 48FFCB                  dec rbx
-   453 00000349 7468                    jz .write_last
-   454                                 
-   455                                 .loop:
-   456                                 
-   457 0000034B 4831C9                  xor rcx, rcx
-   458 0000034E 49C7C201000000          mov r10, 1
-   459                                 
-   460                                 .compare_loop:
-   461 00000355 4C39C1                  cmp rcx, r8
-   462 00000358 741B                    je .compare_done
-   463 0000035A 8A81[00000000]          mov al, [tempKmer + rcx]
-   464 00000360 8A940E[00000000]        mov dl, [kmerList + rsi + rcx]
-   465 00000367 38D0                    cmp al, dl
-   466 00000369 7503                    jne .not_equal
-   467 0000036B 48FFC1                  inc rcx
-   468 0000036E EBE3                    jmp .compare_loop
-   469                                 
-   470                                 .not_equal:
-   471 00000370 49C7C200000000          mov r10, 0
+   450                                 
+   451 00000370 488D1C25[00000100]      lea rbx, [readBuffer + BUFF_SIZE]
+   452 00000378 48C7C10A000000          mov rcx, 10
+   453 0000037F 4883FA00                cmp rdx, 0
+   454 00000383 7506                    jne .convert
+   455 00000385 48FFCB                  dec rbx
+   456 00000388 C60330                  mov byte [rbx], '0'
+   457 0000038B EB1B                    jmp .print
+   458                                 
+   459                                 .convert:
+   460 0000038D 4831C0                  xor rax, rax
+   461 00000390 4889D0                  mov rax, rdx
+   462 00000393 4831D2                  xor rdx, rdx
+   463                                 
+   464                                 .div_loop:
+   465 00000396 48F7F1                  div rcx
+   466 00000399 80C230                  add dl, '0'
+   467 0000039C 48FFCB                  dec rbx
+   468 0000039F 8813                    mov [rbx], dl
+   469 000003A1 4831D2                  xor rdx, rdx
+   470 000003A4 4883F800                cmp rax, 0
+   471 000003A8 75EA                    jne .div_loop
    472                                 
-   473                                 .compare_done:
-   474 00000377 4983FA01                cmp r10, 1
-   475 0000037B 742B                    je .same_kmer
-   476                                 
-   477                                 
-   478 0000037D E834000000              call escribir_kmer_freq
-   479                                 
+   473                                 .print:
+   474 000003AA 4889DE                  mov rsi, rbx
+   475 000003AD 48C7C2[00000100]        mov rdx, readBuffer + BUFF_SIZE
+   476 000003B4 4829DA                  sub rdx, rbx
+   477 000003B7 48C7C001000000          mov rax, SYS_write
+   478 000003BE 488B3C25[00000000]      mov rdi, [outFileDesc]
+   479 000003C6 0F05                    syscall
    480                                 
-   481 00000382 E8EE010000              call limpiar_tempKmer
-   482 00000387 4831C9                  xor rcx, rcx
-   483                                 .copy_new:
-   484 0000038A 4C39C1                  cmp rcx, r8
-   485 0000038D 7410                    je .reset_counter
-   486 0000038F 8A840E[00000000]        mov al, [kmerList + rsi + rcx]
-   487 00000396 8881[00000000]          mov [tempKmer + rcx], al
-   488 0000039C 48FFC1                  inc rcx
-   489 0000039F EBE7                    jmp .copy_new
-   490                                 
-   491                                 .reset_counter:
-   492 000003A1 49C7C101000000          mov r9, 1
-   493 000003A8 EB01                    jmp .continue
-   494                                 
-   495                                 .same_kmer:
-   496 000003AA 49FFC1                  inc r9
-   497                                 
-   498                                 .continue:
-   499 000003AD 4C01C6                  add rsi, r8
-   500 000003B0 48FFCB                  dec rbx
-   501 000003B3 7594                    jnz .loop
-   502                                 
-   503                                 .write_last:
-   504 000003B5 E8FCFFFFFF              call escribir_kmer_freq
-   505                                 
-   506                                 .fin:
-   507 000003BA C3                      ret
+   481                                 
+   482 000003C8 5E                      pop rsi
+   483 000003C9 5A                      pop rdx
+   484 000003CA 59                      pop rcx
+   485 000003CB 5B                      pop rbx
+   486 000003CC C3                      ret
+   487                                 
+   488                                 
+   489                                 
+   490                                 openInputFile:
+   491 000003CD 48C7C002000000          mov rax, SYS_open
+   492 000003D4 48C7C7[00000000]        mov rdi, fileName
+   493 000003DB 48C7C600000000          mov rsi, O_RDONLY
+   494 000003E2 0F05                    syscall
+   495 000003E4 4883F800                cmp rax, 0
+   496 000003E8 7C0A                    jl .error
+   497 000003EA 48890425[00000000]      mov [fileDesc], rax
+   498 000003F2 4831C0                  xor rax, rax
+   499 000003F5 C3                      ret
+   500                                 
+   501                                 .error:
+   502 000003F6 48C7C7[00000000]        mov rdi, errMsgOpen
+   503 000003FD E8C7FCFFFF              call printStr
+   504 00000402 48C7C0FFFFFFFF          mov rax, -1
+   505 00000409 C3                      ret
+   506                                 
+   507                                 
    508                                 
    509                                 
-   510                                 
-   511                                 escribir_kmer_freq:
-   512 000003BB 50                      push rax
-   513 000003BC 53                      push rbx
-   514 000003BD 51                      push rcx
-   515 000003BE 52                      push rdx
-   516 000003BF 56                      push rsi
-   517 000003C0 57                      push rdi
-   518                                 
-   519 000003C1 4C0FB60425[00000000]      movzx r8, byte [kVal]
-   520                                 
-   521                                 
-   522 000003CA 48C7C001000000          mov rax, SYS_write
-   523 000003D1 488B3C25[00000000]      mov rdi, [outFileDesc]
-   524 000003D9 48C7C6[00000000]        mov rsi, tempKmer
-   525 000003E0 4C89C2                  mov rdx, r8
-   526 000003E3 0F05                    syscall
-   527                                 
-   528                                 
-   529 000003E5 48C7C001000000          mov rax, SYS_write
-   530 000003EC 488B3C25[00000000]      mov rdi, [outFileDesc]
-   531 000003F4 48C7C6[00000000]        mov rsi, separator
-   532 000003FB 48C7C202000000          mov rdx, 2
-   533 00000402 0F05                    syscall
-   534                                 
-   535                                 
-   536 00000404 4C89C8                  mov rax, r9
-   537 00000407 E821000000              call print_decimal_to_file
-   538                                 
-   539                                 
-   540 0000040C 48C7C001000000          mov rax, SYS_write
-   541 00000413 488B3C25[00000000]      mov rdi, [outFileDesc]
-   542 0000041B 48C7C6[00000000]        mov rsi, crlf
-   543 00000422 48C7C202000000          mov rdx, 2
-   544 00000429 0F05                    syscall
-   545                                 
-   546 0000042B 5F                      pop rdi
-   547 0000042C 5E                      pop rsi
-   548 0000042D 5A                      pop rdx
-   549 0000042E 59                      pop rcx
-   550 0000042F 5B                      pop rbx
-   551 00000430 58                      pop rax
-   552 00000431 C3                      ret
+   510                                 readFASTA:
+   511 0000040A 4D31FF                  xor r15, r15
+   512 0000040D 4D31E4                  xor r12, r12
+   513                                 
+   514                                 .nextBlock:
+   515 00000410 48C7C000000000          mov rax, SYS_read
+   516 00000417 488B3C25[00000000]      mov rdi, [fileDesc]
+   517 0000041F 48C7C6[00000000]        mov rsi, readBuffer
+   518 00000426 48C7C200000100          mov rdx, BUFF_SIZE
+   519 0000042D 0F05                    syscall
+   520 0000042F 4883F800                cmp rax, 0
+   521 00000433 7E69                    jle .done
+   522 00000435 4989C6                  mov r14, rax
+   523 00000438 4D31ED                  xor r13, r13
+   524                                 
+   525                                 .nextByte:
+   526 0000043B 4D39F5                  cmp r13, r14
+   527 0000043E 74CE                    je .nextBlock
+   528 00000440 418A85[00000000]        mov al, [readBuffer + r13]
+   529 00000447 49FFC5                  inc r13
+   530                                 
+   531 0000044A 4D85E4                  test r12, r12
+   532 0000044D 7546                    jnz .inHeader
+   533                                 
+   534 0000044F 3C3E                    cmp al, '>'
+   535 00000451 7439                    je .setHeader
+   536 00000453 3C0A                    cmp al, LF
+   537 00000455 7433                    je .skip
+   538 00000457 3C0D                    cmp al, 13
+   539 00000459 742F                    je .skip
+   540 0000045B 3C3B                    cmp al, ';'
+   541 0000045D 742B                    je .skip
+   542                                 
+   543                                 
+   544 0000045F 3C41                    cmp al, 'A'
+   545 00000461 7414                    je .store
+   546 00000463 3C43                    cmp al, 'C'
+   547 00000465 7410                    je .store
+   548 00000467 3C47                    cmp al, 'G'
+   549 00000469 740C                    je .store
+   550 0000046B 3C54                    cmp al, 'T'
+   551 0000046D 7408                    je .store
+   552                                 
    553                                 
-   554                                 
-   555                                 
-   556                                 print_decimal_to_file:
-   557 00000432 53                      push rbx
-   558 00000433 51                      push rcx
-   559 00000434 52                      push rdx
-   560 00000435 56                      push rsi
-   561                                 
-   562 00000436 4889C2                  mov rdx, rax
-   563                                 
-   564                                 
-   565 00000439 48C7C114000000          mov rcx, 20
-   566 00000440 48C7C000000100          mov rax, BUFF_SIZE
-   567 00000447 4829C8                  sub rax, rcx
-   568 0000044A 488DB0[00000000]        lea rsi, [readBuffer + rax]
-   569                                 
-   570                                 .clear_loop:
-   571 00000451 C60600                  mov byte [rsi], 0
-   572 00000454 48FFC6                  inc rsi
-   573 00000457 E2F6                    loop .clear_loop
-   574                                 
-   575                                 
-   576 00000459 488D1C25[00000100]      lea rbx, [readBuffer + BUFF_SIZE]
-   577 00000461 48C7C10A000000          mov rcx, 10
-   578 00000468 4883FA00                cmp rdx, 0
-   579 0000046C 7506                    jne .convert
-   580 0000046E 48FFCB                  dec rbx
-   581 00000471 C60330                  mov byte [rbx], '0'
-   582 00000474 EB1B                    jmp .print
+   554 0000046F 3C61                    cmp al, 'a'
+   555 00000471 7217                    jb .skip
+   556 00000473 3C7A                    cmp al, 'z'
+   557 00000475 7713                    ja .skip
+   558 00000477 2C20                    sub al, 32
+   559                                 
+   560                                 .store:
+   561 00000479 418887[00000000]        mov [adnBuffer + r15], al
+   562 00000480 49FFC7                  inc r15
+   563 00000483 4981FF00127A00          cmp r15, MAX_ADN_SIZE
+   564 0000048A 7312                    jae .done
+   565                                 .skip:
+   566 0000048C EBAB                    jmp .nextByte
+   567                                 
+   568                                 .setHeader:
+   569 0000048E 49C7C401000000          mov r12, 1
+   570 00000495 EBF3                    jmp .skip
+   571                                 
+   572                                 .inHeader:
+   573 00000497 3C0A                    cmp al, LF
+   574 00000499 75EF                    jne .skip
+   575 0000049B 4D31E4                  xor r12, r12
+   576 0000049E EBEA                    jmp .skip
+   577                                 
+   578                                 .done:
+   579 000004A0 4C893C25[00000000]      mov [adnLength], r15
+   580 000004A8 4831C0                  xor rax, rax
+   581 000004AB C3                      ret
+   582                                 
    583                                 
-   584                                 .convert:
-   585 00000476 4831C0                  xor rax, rax
-   586 00000479 4889D0                  mov rax, rdx
-   587 0000047C 4831D2                  xor rdx, rdx
-   588                                 .div_loop:
-   589 0000047F 48F7F1                  div rcx
-   590 00000482 80C230                  add dl, '0'
-   591 00000485 48FFCB                  dec rbx
-   592 00000488 8813                    mov [rbx], dl
-   593 0000048A 4831D2                  xor rdx, rdx
-   594 0000048D 4883F800                cmp rax, 0
-   595 00000491 75EA                    jne .div_loop
-   596                                 
-   597                                 .print:
-   598 00000493 4889DE                  mov rsi, rbx
-   599 00000496 48C7C2[00000100]        mov rdx, readBuffer + BUFF_SIZE
-   600 0000049D 4829DA                  sub rdx, rbx
-   601 000004A0 48C7C001000000          mov rax, SYS_write
-   602 000004A7 488B3C25[00000000]      mov rdi, [outFileDesc]
-   603 000004AF 0F05                    syscall
-   604                                 
-   605 000004B1 5E                      pop rsi
-   606 000004B2 5A                      pop rdx
-   607 000004B3 59                      pop rcx
-   608 000004B4 5B                      pop rbx
-   609 000004B5 C3                      ret
-   610                                 
-   611                                 
-   612                                 
-   613                                 openInputFile:
-   614 000004B6 48C7C002000000          mov rax, SYS_open
-   615 000004BD 48C7C7[00000000]        mov rdi, fileName
-   616 000004C4 48C7C600000000          mov rsi, O_RDONLY
-   617 000004CB 0F05                    syscall
-   618 000004CD 4883F800                cmp rax, 0
-   619 000004D1 7C0A                    jl .error
-   620 000004D3 48890425[00000000]      mov [fileDesc], rax
-   621 000004DB 4831C0                  xor rax, rax
-   622 000004DE C3                      ret
-   623                                 .error:
-   624 000004DF 48C7C7[00000000]        mov rdi, errMsgOpen
-   625 000004E6 E8E2FBFFFF              call printStr
-   626 000004EB 48C7C0FFFFFFFF          mov rax, -1
-   627 000004F2 C3                      ret
-   628                                 
-   629                                 
-   630                                 
-   631                                 getKValue:
-   632 000004F3 48C7C7[00000000]        mov rdi, promptK
-   633 000004FA E8CEFBFFFF              call printStr
-   634                                 
-   635 000004FF 48C7C000000000          mov rax, SYS_read
-   636 00000506 48C7C700000000          mov rdi, STDIN
-   637 0000050D 48C7C6[00000000]        mov rsi, readBuffer
-   638 00000514 48C7C204000000          mov rdx, 4
-   639 0000051B 0F05                    syscall
-   640                                 
-   641 0000051D 4831C9                  xor rcx, rcx
-   642 00000520 4831DB                  xor rbx, rbx
+   584                                 getKValue:
+   585 000004AC 48C7C7[00000000]        mov rdi, promptK
+   586 000004B3 E811FCFFFF              call printStr
+   587                                 
+   588                                 
+   589 000004B8 48C7C000000000          mov rax, SYS_read
+   590 000004BF 48C7C700000000          mov rdi, STDIN
+   591 000004C6 48C7C6[00000000]        mov rsi, readBuffer
+   592 000004CD 48C7C204000000          mov rdx, 4
+   593 000004D4 0F05                    syscall
+   594                                 
+   595                                 
+   596 000004D6 480FB60425[00000000]      movzx rax, byte [readBuffer]
+   597 000004DF 4883F830                cmp rax, '0'
+   598 000004E3 7C50                    jl .error
+   599 000004E5 4883F839                cmp rax, '9'
+   600 000004E9 7F4A                    jg .error
+   601                                 
+   602                                 
+   603 000004EB 4883E830                sub rax, '0'
+   604 000004EF 4889C3                  mov rbx, rax
+   605                                 
+   606                                 
+   607 000004F2 480FB60425[01000000]      movzx rax, byte [readBuffer + 1]
+   608 000004FB 4883F830                cmp rax, '0'
+   609 000004FF 7C1D                    jl .single_digit
+   610 00000501 4883F839                cmp rax, '9'
+   611 00000505 7F17                    jg .single_digit
+   612 00000507 4883F80A                cmp rax, 10
+   613 0000050B 7411                    je .single_digit
+   614 0000050D 4883F80D                cmp rax, 13
+   615 00000511 740B                    je .single_digit
+   616                                 
+   617                                 
+   618 00000513 4883E830                sub rax, '0'
+   619 00000517 486BDB0A                imul rbx, 10
+   620 0000051B 4801C3                  add rbx, rax
+   621 0000051E EBFE                    jmp .validate
+   622                                 
+   623                                 .single_digit:
+   624                                 
+   625                                 
+   626                                 .validate:
+   627                                 
+   628 00000520 4883FB04                cmp rbx, 4
+   629 00000524 7C0F                    jl .error
+   630 00000526 4883FB0A                cmp rbx, 10
+   631 0000052A 7F09                    jg .error
+   632                                 
+   633                                 
+   634 0000052C 881C25[00000000]        mov [kVal], bl
+   635 00000533 4831C0                  xor rax, rax
+   636 00000536 C3                      ret
+   637                                 
+   638                                 .error:
+   639 00000537 48C7C7[00000000]        mov rdi, errMsgK
+   640 0000053E E886FBFFFF              call printStr
+   641 00000543 48C7C0FFFFFFFF          mov rax, -1
+   642 0000054A C3                      ret
    643                                 
-   644                                 .parse_loop:
-   645 00000523 8A81[00000000]          mov al, [readBuffer + rcx]
-   646 00000529 3C0A                    cmp al, 10
-   647 0000052B 741C                    je .done_parse
-   648 0000052D 3C0D                    cmp al, 13
-   649 0000052F 7418                    je .done_parse
-   650 00000531 3C00                    cmp al, 0
-   651 00000533 7414                    je .done_parse
-   652 00000535 2C30                    sub al, '0'
-   653 00000537 3C09                    cmp al, 9
-   654 00000539 7725                    ja .error
-   655                                 
-   656 0000053B 486BDB0A                imul rbx, rbx, 10
-   657 0000053F 4801C3                  add rbx, rax
-   658                                 
-   659 00000542 48FFC1                  inc rcx
-   660 00000545 4883F904                cmp rcx, 4
-   661 00000549 7CD6                    jl .parse_loop
-   662                                 
-   663                                 .done_parse:
-   664 0000054B 4883FB04                cmp rbx, 4
-   665 0000054F 7C0F                    jl .error
-   666 00000551 4883FB0A                cmp rbx, 10
-   667 00000555 7F09                    jg .error
-   668 00000557 881C25[00000000]        mov [kVal], bl
-   669 0000055E 4831C0                  xor rax, rax
-   670 00000561 C3                      ret
-   671                                 
-   672                                 .error:
-   673 00000562 48C7C7[00000000]        mov rdi, errMsgK
-   674 00000569 E85FFBFFFF              call printStr
-   675 0000056E 48C7C0FFFFFFFF          mov rax, -1
-   676 00000575 C3                      ret
-   677                                 
-   678                                 
-   679                                 
-   680                                 generateWords:
-   681 00000576 4831C0                  xor rax, rax
-   682 00000579 C3                      ret
-   683                                 
-   684                                 
-   685                                 
-   686                                 limpiar_tempKmer:
-   687 0000057A 50                      push rax
-   688 0000057B 51                      push rcx
-   689 0000057C 4831C9                  xor rcx, rcx
-   690 0000057F 48C7C010000000          mov rax, 16
-   691                                 .limpiar_loop:
-   692 00000586 C681[00000000]00        mov byte [tempKmer + rcx], 0
-   693 0000058D 48FFC1                  inc rcx
-   694 00000590 48FFC8                  dec rax
-   695 00000593 75EF                    jnz .limpiar_loop
-   696 00000595 59                      pop rcx
-   697 00000596 58                      pop rax
-   698 00000597 C3                      ret
+   644                                 
+   645                                 
+   646                                 generateWords:
+   647                                 
+   648 0000054B 4831C0                  xor rax, rax
+   649 0000054E C3                      ret
+   650                                 
+   651                                 
+   652                                 
+   653                                 limpiar_tempKmer:
+   654 0000054F 50                      push rax
+   655 00000550 51                      push rcx
+   656 00000551 4831C9                  xor rcx, rcx
+   657 00000554 48C7C010000000          mov rax, 16
+   658                                 .limpiar_loop:
+   659 0000055B C681[00000000]00        mov byte [tempKmer + rcx], 0
+   660 00000562 48FFC1                  inc rcx
+   661 00000565 48FFC8                  dec rax
+   662 00000568 75EF                    jnz .limpiar_loop
+   663 0000056A 59                      pop rcx
+   664 0000056B 58                      pop rax
+   665 0000056C C3                      ret
+   666                                 
+   667                                 
