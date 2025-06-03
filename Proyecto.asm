@@ -384,16 +384,16 @@ ordenarKmers:
     jnz .outer
 
 .fin:
-    pop r12
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rdx
-    pop rcx
-    pop rsi
-    pop rdi
-    pop rbx
+    pop r12                     ; Recupera el registro r12 que es usado como offset inicial
+    pop r11                     ; Recupera el registro r11 que es usado como flag de intercambio
+    pop r10                     ; Recupera el registro r10 que es usado como flag de intercambio
+    pop r9                      ; Recupera el registro r9 que es usado como índice de comparación
+    pop r8                      ; Recupera el registro r8 que es usado para el tamaño del k-mer
+    pop rdx                     ; Recupera el registro rdx que es usado para manejar el buffer de lectura
+    pop rcx                     ; Recupera el registro rcx que es usado como contador de iteraciones
+    pop rsi                    ; Recupera el registro rsi que es usado como índice de comparación
+    pop rdi                    ; Recupera el registro rdi que es usado como índice de kmerList
+    pop rbx                    ; Recupera el registro rbx que es usado como contador de k-mers
     ret
 
 ;-------------------------------------------------------
@@ -411,16 +411,16 @@ contar_frecuencias:
     call limpiar_tempKmer
     xor rcx, rcx
 .copy_first:
-    cmp rcx, r8
-    je .start_loop
-    mov al, [kmerList + rsi + rcx]
-    mov [tempKmer + rcx], al
-    inc rcx
-    jmp .copy_first
+    cmp rcx, r8          ; Verifica si se han copiado todos los caracteres del k-mer
+    je .start_loop       ;si es así, comienza el bucle
+    mov al, [kmerList + rsi + rcx] ; Carga el siguiente carácter del k-mer
+    mov [tempKmer + rcx], al ; Guarda el carácter en tempKmer
+    inc rcx           ; Incrementa el índice
+    jmp .copy_first 
 
 .start_loop:
-    add rsi, r8
-    dec rbx
+    add rsi, r8       ; Avanza al siguiente k-mer en kmerList
+    dec rbx           ;decrementa el contador de k-mers restantes
     jz .write_last             ; Solo había un elemento
 
 .loop:
@@ -429,20 +429,20 @@ contar_frecuencias:
     mov r10, 1                 ; Flag = iguales
 
 .compare_loop:
-    cmp rcx, r8
+    cmp rcx, r8 
     je .compare_done
-    mov al, [tempKmer + rcx]
-    mov dl, [kmerList + rsi + rcx]
-    cmp al, dl
+    mov al, [tempKmer + rcx]  ; Carga el carácter del k-mer actual
+    mov dl, [kmerList + rsi + rcx] ; Carga el carácter del siguiente k-mer
+    cmp al, dl ; Compara los caracteres de los k-mers
     jne .not_equal
     inc rcx
     jmp .compare_loop
 
 .not_equal:
-    mov r10, 0
+    mov r10, 0 ; Flag = diferentes
 
 .compare_done:
-    cmp r10, 1
+    cmp r10, 1 ; Si son iguales
     je .same_kmer
 
     ; Son diferentes: escribe el anterior y copia el nuevo
@@ -464,7 +464,7 @@ contar_frecuencias:
     jmp .continue
 
 .same_kmer:
-    inc r9
+    inc r9 ; Incrementa el contador de repeticiones del k-mer actual
 
 .continue:
     add rsi, r8
@@ -525,52 +525,52 @@ escribir_kmer_freq:
 ;-------------------------------------------------------
 ; Convierte el número en rax a decimal y lo escribe en el archivo de salida
 print_decimal_to_file:
-    push rbx
-    push rcx
-    push rdx
-    push rsi
+    push rbx ;este registro se usa para manejar el buffer de salida
+    push rcx ;este registro se usa para manejar el contador de caracteres
+    push rdx ;este registro se usa para manejar el número original
+    push rsi ;este registro se usa para manejar el puntero al buffer de salida
 
-    mov rdx, rax                ; Guarda el número original
+    mov rdx, rax                ; Guarda el número original se obtiene de rax de los k-mers que son la frecuencia
 
     ; Limpia 20 bytes del final del buffer
     mov rcx, 20
     mov rax, BUFF_SIZE
-    sub rax, rcx
-    lea rsi, [readBuffer + rax]
+    sub rax, rcx ;sirve para calcular el inicio del buffer
+    lea rsi, [readBuffer + rax] ;sirve para apuntar al final del buffer
 
 .clear_loop:
-    mov byte [rsi], 0
-    inc rsi
+    mov byte [rsi], 0 ;limpia el buffer
+    inc rsi 
     loop .clear_loop
 
     ; Empieza desde el final del buffer
     lea rbx, [readBuffer + BUFF_SIZE]
-    mov rcx, 10
-    cmp rdx, 0
-    jne .convert
-    dec rbx
-    mov byte [rbx], '0'
-    jmp .print
+    mov rcx, 10 ; Base 10 para la conversión
+    cmp rdx, 0 ; Verifica si el número es cero
+    jne .convert ; Si no es cero, convierte
+    dec rbx ; Mueve el puntero hacia atrás en el buffer
+    mov byte [rbx], '0' ; Si es cero, escribe '0' en el buffer
+    jmp .print ; Imprime el número
 
 .convert:
-    xor rax, rax
-    mov rax, rdx
-    xor rdx, rdx
+    xor rax, rax ;sirve para limpiar el registro rax
+    mov rax, rdx ;sirve para cargar el número a convertir
+    xor rdx, rdx ;sirve para limpiar el registro rdx
 .div_loop:
-    div rcx
-    add dl, '0'
-    dec rbx
-    mov [rbx], dl
-    xor rdx, rdx
-    cmp rax, 0
-    jne .div_loop
+    div rcx ; Divide rax entre 10, el cociente queda en rax y el residuo en rdx
+    add dl, '0' ; Convierte el residuo a carácter ASCII
+    dec rbx ; Mueve el puntero hacia atrás en el buffer
+    mov [rbx], dl ; Guarda el carácter en el buffer
+    xor rdx, rdx ; Limpia rdx para la siguiente división
+    cmp rax, 0 ; Verifica si el cociente es cero
+    jne .div_loop ;si no es cero, sigue dividiendo
 
 .print:
-    mov rsi, rbx
-    mov rdx, readBuffer + BUFF_SIZE
-    sub rdx, rbx
-    mov rax, SYS_write
-    mov rdi, [outFileDesc]
+    mov rsi, rbx ; Puntero al inicio del número en el buffer
+    mov rdx, readBuffer + BUFF_SIZE ;esta es la dirección del final del buffer
+    sub rdx, rbx ; Calcula la longitud del número
+    mov rax, SYS_write ; Llama al sistema para escribir
+    mov rdi, [outFileDesc] ; Descriptor del archivo de salida
     syscall
 
     pop rsi
@@ -588,23 +588,23 @@ openInputFile:
     syscall
     cmp rax, 0
     jl .error
-    mov [fileDesc], rax
-    xor rax, rax
+    mov [fileDesc], rax ; Guarda el descriptor del archivo
+    xor rax, rax ; Éxito
     ret
 .error:
-    mov rdi, errMsgOpen
-    call printStr
-    mov rax, -1
+    mov rdi, errMsgOpen ;mensaje de error al abrir el archivo
+    call printStr ;llama a la función para imprimir el mensaje de error
+    mov rax, -1 ; Error al abrir el archivo
     ret
 
 ;-------------------------------------------
 ; Solicita el valor de k al usuario y lo valida
 getKValue:
-    mov rdi, promptK
-    call printStr
+    mov rdi, promptK ; Mensaje para solicitar k
+    call printStr ; Imprime el mensaje
 
-    mov rax, SYS_read
-    mov rdi, STDIN
+    mov rax, SYS_read ; Llama al sistema para leer la entrada del usuario
+    mov rdi, STDIN ; Descriptor de entrada estándar
     mov rsi, readBuffer
     mov rdx, 4          ; Lee hasta 4 caracteres incluyendo '\n'
     syscall
@@ -660,9 +660,9 @@ limpiar_tempKmer:
     xor rcx, rcx
     mov rax, 16        ; Tamaño máximo del buffer
 .limpiar_loop:
-    mov byte [tempKmer + rcx], 0
-    inc rcx
-    dec rax
+    mov byte [tempKmer + rcx], 0 ; Limpia el buffer
+    inc rcx ;incrementa el índice del buffer
+    dec rax ; Decrementa el contador
     jnz .limpiar_loop
     pop rcx
     pop rax
