@@ -318,7 +318,7 @@ ordenarYGuardarKmers:
     ret
 
 ;-------------------------------------------------------
-; Ordena los k-mers en kmerList usando bubble sort
+; Ordena los k-mers en kmerList 
 ordenarKmers:
     push rbx                       ; Guarda el registro rbx que es usado como contador de k-mers
     push rdi                       ; Guarda el registro rdi que es usado como índice de kmerList
@@ -347,26 +347,26 @@ ordenarKmers:
     mov r9, 0
 
 .compare_loop:
-    cmp r9, r8
-    je .no_swap
-    mov al, [kmerList + r12 + r9]
-    mov dl, [kmerList + rsi + r9]
-    cmp al, dl
-    jb .no_swap
-    ja .do_swap
-    inc r9
-    jmp .compare_loop
+    cmp r9, r8                ; Compara los k-mers    
+    je .no_swap         ; Si ya se compararon todos los caracteres, no hay intercambio  
+    mov al, [kmerList + r12 + r9]  ; Carga el k-mer actual
+    mov dl, [kmerList + rsi + r9] ; Carga el siguiente k-mer
+    cmp al, dl           ; Compara los caracteres
+    jb .no_swap       ; Si el actual es menor, no hay intercambio
+    ja .do_swap  ; Si el actual es mayor, hay que intercambiar
+    inc r9 ; Avanza al siguiente carácter
+    jmp .compare_loop 
 
 .do_swap:
     xor r9, r9
 .swap_loop:
-    cmp r9, r8
-    je .swap_done
-    mov al, [kmerList + r12 + r9]
-    mov dl, [kmerList + rsi + r9]
-    mov [kmerList + r12 + r9], dl
-    mov [kmerList + rsi + r9], al
-    inc r9
+    cmp r9, r8           ; Verifica si se han intercambiado todos los caracteres
+    je .swap_done 
+    mov al, [kmerList + r12 + r9] ; Carga el carácter del k-mer actual
+    mov dl, [kmerList + rsi + r9] ; Carga el carácter del siguiente k-mer
+    mov [kmerList + r12 + r9], dl ; Intercambia los caracteres de los k-mers
+    mov [kmerList + rsi + r9], al ; Intercambia los caracteres de los k-mers
+    inc r9 ; Avanza al siguiente carácter
     jmp .swap_loop
 
 .swap_done:
