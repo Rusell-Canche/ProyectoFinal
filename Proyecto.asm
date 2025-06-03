@@ -46,7 +46,7 @@ errMsgRead db "Error leyendo archivo.", LF, NULL
 errMsgWrite db "Error escribiendo archivo.", LF, NULL
 errMsgK db "Error: k debe ser entre 4 y 10.", LF, NULL
 successMsg db "Palabras guardadas en palabras.txt", LF, NULL
-crlf db 13, 10, 0
+crlf db 13, 10, 0   ; Carácter de salto de línea (CRLF)
 
 section .bss
 readBuffer resb BUFF_SIZE         ; Buffer para leer del archivo
@@ -72,118 +72,118 @@ _start:
     call printStr                ; Imprime el encabezado
 
     call openInputFile           ; Abre el archivo de entrada
-    cmp rax, 0
+    cmp rax, 0                   ; Verifica si hubo error al abrir
     jl _exitError                ; Si hay error, termina
 
     call getKValue               ; Solicita el valor de k al usuario
-    cmp rax, 0
+    cmp rax, 0                   ; Verifica si hubo error al obtener k
     jl _exitError
 
     call readFastaFile           ; Lee el archivo FASTA y almacena la secuencia de ADN
-    cmp rax, 0
+    cmp rax, 0                   ; Verifica si hubo error al leer
     jl _exitError
 
     ; Cierra el archivo de entrada
-    mov rax, SYS_close
-    mov rdi, [fileDesc]
-    syscall
+    mov rax, SYS_close           ; Cierra el archivo de entrada
+    mov rdi, [fileDesc]          ; descriptor del archivo
+    syscall                      ;Sirve para cerrar el archivo
 
     call generateWords           ; (Actualmente solo retorna éxito)
 
-    cmp rax, 0
-    jl _exitError
+    cmp rax, 0                   ; Verifica si hubo error al generar palabras
+    jl _exitError                ; Si hay error, termina
 
     ; Crea el archivo de salida (trunca si existe)
-    mov rax, SYS_creat
-    mov rdi, outFileName
-    mov rsi, S_IRUSR | S_IWUSR
-    syscall
-    cmp rax, 0
-    jl _exitError
-    mov [outFileDesc], rax
+    mov rax, SYS_creat           ; Crea o trunca el archivo de salida
+    mov rdi, outFileName         ; Nombre del archivo de salida
+    mov rsi, S_IRUSR | S_IWUSR   ; Permisos de lectura y escritura para el usuario
+    syscall                      ; Llama al sistema para crear el archivo
+    cmp rax, 0                   ; Verifica si hubo error al crear el archivo
+    jl _exitError                ; Si hay error, termina
+    mov [outFileDesc], rax       ; Guarda el descriptor del archivo de salida
 
     call ordenarYGuardarKmers    ; Extrae y guarda los k-mers en kmerList
     call ordenarKmers            ; Ordena los k-mers alfabéticamente
 
-    mov rdi, ordenadoMsg
+    mov rdi, ordenadoMsg         ; Mensaje de k-mers ordenados
     call printStrToFile          ; Escribe mensaje de encabezado en el archivo de salida
 
     call contar_frecuencias      ; Cuenta y escribe las frecuencias de cada k-mer
 
     ; Cierra el archivo de salida
     mov rax, SYS_close
-    mov rdi, [outFileDesc]
-    syscall
+    mov rdi, [outFileDesc]        ; descriptor del archivo de salida
+    syscall                       ; Cierra el archivo de salida
 
-    mov rdi, successMsg
-    call printStr                ; Mensaje de éxito
+    mov rdi, successMsg           ; Mensaje de éxito
+    call printStr                 ; Mensaje de éxito
 
-    mov rax, SYS_exit
-    mov rdi, EXIT_SUCCESS
-    syscall
+    mov rax, SYS_exit             ; Termina el programa con éxito
+    mov rdi, EXIT_SUCCESS         ;sirve para indicar que el programa terminó correctamente
+    syscall                       ;sirve para terminar el programa
 
 ;-------------------------------------------
 ; Termina el programa con error
 _exitError:
-    mov rax, SYS_exit
-    mov rdi, 1
-    syscall
+    mov rax, SYS_exit              ; Termina el programa con error
+    mov rdi, 1                     ; Código de error 1
+    syscall                        ; Cierra el archivo de salida si está abierto
 
 ;-------------------------------------------
 ; Imprime una cadena por consola (rdi = puntero a la cadena)
 printStr:
-    push rbx
-    mov rbx, rdi
-    xor rdx, rdx
+    push rbx                       ; sirve para guardar el registro rbx
+    mov rbx, rdi                   ; rbx apunta a la cadena a imprimir
+    xor rdx, rdx                   ;comparador de longitud de cadena
 .cont:
-    cmp byte [rbx + rdx], 0
-    je .done
-    inc rdx
-    jmp .cont
+    cmp byte [rbx + rdx], 0        ; verifica si el final de la cadena es nulo 
+    je .done                       ; si es nulo, termina
+    inc rdx                        ; incrementa el contador de longitud                      
+    jmp .cont                      ; vuelve al inicio del bucle
 .done:
-    mov rax, SYS_write
-    mov rdi, STDOUT
-    mov rsi, rbx
-    syscall
-    pop rbx
-    ret
+    mov rax, SYS_write             ; Llama al sistema para escribir
+    mov rdi, STDOUT                ; Descriptor de archivo estándar de salida
+    mov rsi, rbx                   ; Puntero a la cadena
+    syscall                        ; Llama al sistema para escribir la cadena
+    pop rbx                        ; Recupera el registro rbx
+    ret                            ;sirve para retornar al punto de llamada
 
 ;-------------------------------------------
 ; Imprime una cadena en el archivo de salida (rdi = puntero a la cadena)
 printStrToFile:
-    push rbx
-    mov rbx, rdi
-    xor rdx, rdx
+    push rbx                        ; Guarda el registro rbx
+    mov rbx, rdi                    ; rbx apunta a la cadena a imprimir
+    xor rdx, rdx                    ; Contador de longitud de cadena
 .lenloop:
-    cmp byte [rbx + rdx], 0
-    je .write
-    inc rdx
+    cmp byte [rbx + rdx], 0         ; Verifica si el final de la cadena es nulo
+    je .write                       ; Si es nulo, escribe
+    inc rdx                         ; Incrementa el contador de longitud
     jmp .lenloop
 .write:
-    mov rax, SYS_write
-    mov rdi, [outFileDesc]
-    mov rsi, rbx
-    syscall
-    pop rbx
+    mov rax, SYS_write              ; Llama al sistema para escribir
+    mov rdi, [outFileDesc]          ; Descriptor de archivo de salida
+    mov rsi, rbx                    ; Puntero a la cadena
+    syscall                         ; Llama al sistema para escribir la cadena
+    pop rbx                         ; Recupera el registro rbx para no perder su valor
     ret
 
 ;-------------------------------------------
 ; Lee el archivo FASTA/FNA y almacena la secuencia de ADN en adnChunk
 readFastaFile:
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
+    push rbx                         ; Guarda el registro rbx que es usado como índice de lectura
+    push rcx                         ; Guarda el registro rcx que es usado para contar bytes leídos
+    push rdx                         ; Guarda el registro rdx que es usado para manejar el buffer de lectura
+    push rsi                         ; Guarda el registro rsi que es usado como índice en readBuffer
+    push rdi                         ; Guarda el registro rdi que es usado para manejar el descriptor de archivo
 
-    xor rbx, rbx                ; Índice en adnChunk
+    xor rbx, rbx                     ; Índice en adnChunk que se va a llenar
     
 .read_loop:
     ; Lee un chunk del archivo
-    mov rax, SYS_read
-    mov rdi, [fileDesc]
-    mov rsi, readBuffer
-    mov rdx, BUFF_SIZE
+    mov rax, SYS_read                 ; Llama al sistema para leer
+    mov rdi, [fileDesc]               ; Descriptor del archivo de entrada
+    mov rsi, readBuffer               ; Puntero al buffer de lectura
+    mov rdx, BUFF_SIZE                ; Tamaño del buffer
     syscall
     
     cmp rax, 0
@@ -193,10 +193,10 @@ readFastaFile:
     xor rsi, rsi                ; Índice en readBuffer
     
 .process_chunk:
-    cmp rsi, rcx
-    jge .read_loop
+    cmp rsi, rcx                ; Verifica si se han procesado todos los bytes leídos
+    jge .read_loop              ; Si sí, lee el siguiente chunk
     
-    mov al, [readBuffer + rsi]
+    mov al, [readBuffer + rsi]  ; Carga el siguiente byte del buffer
     
     ; Salta líneas de cabecera (empiezan con '>')
     cmp al, '>'
@@ -213,9 +213,9 @@ readFastaFile:
     je .next_char
     
     ; Valida que sea nucleótido válido (A, T, G, C, a, t, g, c)
-    cmp al, 'A'
+    cmp al, 'A'                  ; Verifica si es un nucleótido válido
     je .valid_nucleotide
-    cmp al, 'T'
+    cmp al, 'T' 
     je .valid_nucleotide
     cmp al, 'G'
     je .valid_nucleotide
@@ -273,7 +273,7 @@ readFastaFile:
     mov rax, -1
     
 .exit:
-    pop rdi
+    pop rdi                      ;sirve para recuperar el registro rdi
     pop rsi
     pop rdx
     pop rcx
@@ -301,17 +301,17 @@ ordenarYGuardarKmers:
 
     mov rdx, 0
 .loop_kmer:
-    cmp rdx, rcx
+    cmp rdx, rcx                  ; Verifica si se han copiado todos los caracteres del k-mer
     je .next
-    mov al, [adnChunk + rsi + rdx]
-    mov [kmerList + rdi + rdx], al
-    inc rdx
+    mov al, [adnChunk + rsi + rdx] ; Carga el siguiente nucleótido
+    mov [kmerList + rdi + rdx], al ; Guarda el nucleótido en kmerList
+    inc rdx                       ; Incrementa el índice del k-mer
     jmp .loop_kmer
 
 .next:
-    inc rsi
-    add rdi, rcx
-    dec rbx
+    inc rsi                       ; Avanza al siguiente nucleótido en adnChunk
+    add rdi, rcx                  ; Avanza al siguiente k-mer en kmerList
+    dec rbx                       ; Decrementa el contador de k-mers restantes
     jmp .copiar
 
 .fin:
@@ -320,16 +320,15 @@ ordenarYGuardarKmers:
 ;-------------------------------------------------------
 ; Ordena los k-mers en kmerList usando bubble sort
 ordenarKmers:
-    push rbx
-    push rdi
-    push rsi
-    push rcx
-    push rdx
-    push r8
-    push r9
-    push r10
-    push r11
-    push r12
+    push rbx                       ; Guarda el registro rbx que es usado como contador de k-mers
+    push rdi                       ; Guarda el registro rdi que es usado como índice de kmerList
+    push rsi                       ; Guarda el registro rsi que es usado como índice de comparación
+    push rcx                       ; Guarda el registro rcx que es usado como contador de iteraciones
+    push r8                        ; Guarda el registro r8 que es usado para el tamaño del k-mer
+    push r9                        ; Guarda el registro r9 que es usado como índice de comparación
+    push r10                       ; Guarda el registro r10 que es usado como flag de intercambio
+    push r11                       ; Guarda el registro r11 que es usado como flag de intercambio
+    push r12                       ; Guarda el registro r12 que es usado como offset inicial
 
     movzx r8, byte [kVal]      ; Tamaño de k-mer
     mov rbx, [totalKmers]
