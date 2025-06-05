@@ -41,9 +41,14 @@ errMsgWrite db "Error escribiendo archivo.", LF, NULL ; Mensaje de error si fall
 errMsgK db "Error: k debe ser entre 4 y 10.", LF, NULL ; Mensaje de error si el valor de k ingresado es inválido
 successMsg db "Palabras guardadas en palabras.txt", LF, NULL ; Mensaje mostrado al finalizar exitosamente
 crlf db 13, 10, 0                     ; Retorno de carro + salto de línea (CR + LF), usado al final de cada línea en archivo
+errMsgOverflow   db "Error: secuencia de ADN demasiado grande.", LF, NULL
+errMsgCreate     db "Error creando archivo de salida.", LF, NULL
+error_code_prefix db "Error code: ", 0
+newline db 10, 0
 
 section .bss                         ; Sección para datos no inicializados (se llenan con ceros en tiempo de ejecución)
-
+error_code resq 1
+error_msg  resq 1
 readBuffer resb BUFF_SIZE            ; Buffer temporal para leer bloques del archivo (64KB)
 adnBuffer resb MAX_ADN_SIZE          ; Buffer grande para almacenar toda la secuencia de ADN limpia (hasta 8MB)
 fileDesc resq 1                      ; Variable para guardar el descriptor del archivo de entrada (8 bytes)
@@ -112,10 +117,46 @@ _start:
     mov rdi, EXIT_SUCCESS       ; Código de salida 0 (éxito)
     syscall                     ; Salir del programa
 
-_exitError:                     ; Etiqueta en caso de error
-    mov rax, SYS_exit           ; Preparar syscall de salida
-    mov rdi, 1                  ; Código de salida 1 (error)
-    syscall                     ; Salir del programa con error
+; Manejador centralizado de errores
+_exitError:
+    ; Imprimir mensaje de error específico
+    mov rdi, [error_msg]
+    call printStr
+    
+    ; Imprimir prefijo del código de error
+    mov rdi, error_code_prefix
+    call printStr
+    
+    ; Convertir código de error a string
+    mov rax, [error_code]
+    neg rax                     ; Convertir a positivo
+    mov rbx, 10
+    lea rsi, [readBuffer + BUFF_SIZE - 1]
+    mov byte [rsi], 0           ; Terminador nulo
+    
+.convert_loop:
+    dec rsi
+    xor rdx, rdx
+    div rbx
+    add dl, '0'                 ; Convertir dígito a ASCII
+    mov [rsi], dl
+    test rax, rax
+    jnz .convert_loop
+    
+    ; Imprimir código de error
+    mov rdi, rsi
+    call printStr
+    
+    ; Imprimir nueva línea
+    mov rdi, newline
+    call printStr
+    
+    ; Salir con código 1
+    mov rax, SYS_exit
+    mov rdi, 1
+    syscall
+
+
 ;-------------------------------------------
 ; Función para imprimir cadenas
 printStr:
@@ -461,21 +502,21 @@ print_decimal_to_file:
 ;-------------------------------------------
 ; Abrir archivo de entrada
 openInputFile:
-    mov rax, SYS_open          ; syscall para abrir archivo
-    mov rdi, fileName          ; nombre del archivo a abrir (puntero a string)
-    mov rsi, O_RDONLY          ; modo de solo lectura
-    syscall                    ; ejecutar syscall (devuelve descriptor en rax)
-    cmp rax, 0                 ; ¿se abrió correctamente?
-    jl .error                  ; si rax < 0, hubo error
+    mov rax, SYS_open
+    mov rdi, fileName
+    mov rsi, O_RDONLY
+    syscall
+    cmp rax, 0
+    jl .error
+    ; ... (código exitoso)
     mov [fileDesc], rax        ; guardar descriptor en variable fileDesc
-    xor rax, rax               ; retornar 0 como éxito
+    xor rax, rax 
     ret
-
 .error:
-    mov rdi, errMsgOpen        ; cargar mensaje de error
-    call printStr              ; imprimir el mensaje
-    mov rax, -1                ; retornar -1 como error
-    ret
+    mov qword [error_msg], errMsgOpen
+    mov qword [error_code], -2
+    jmp _exitError
+
 
 
 ;-------------------------------------------
